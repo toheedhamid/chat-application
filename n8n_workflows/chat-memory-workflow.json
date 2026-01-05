@@ -19,10 +19,110 @@
     },
     {
       "parameters": {
+        "jsCode": "// Extract data from incoming request\nconst body = items[0].json.body || {};\nconst conversationId = body.conversationId || `conv_${Date.now()}`;\nconst userMessage = body.message || '';\nconst action = body.action || 'chat'; // 'chat', 'clear', 'get'\n\n// ADD THIS: Only include userMessage for chat actions\nconst effectiveMessage = (action === 'chat') ? userMessage : '';\n\nreturn [{\n  json: {\n    conversationId: conversationId,\n    userMessage: effectiveMessage,  // Use effectiveMessage\n    action: action,\n    timestamp: new Date().toISOString(),\n    // Redis key for storing conversation history\n    redisKey: `chat:${conversationId}`,\n    // ADD: Flag to indicate if this is a chat action\n    isChatAction: (action === 'chat')\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        -32
+      ],
+      "id": "e5152016-9316-4487-acd7-202996bf2642",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $json.redisKey }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -224
+      ],
+      "id": "7a5d27ac-d0a1-4b3d-8b56-9a7415c55446",
+      "name": "Redis",
+      "alwaysOutputData": false,
+      "credentials": {
+        "redis": {
+          "id": "yXsSNEwc8Lpizqg5",
+          "name": "Redis account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the conversation data that was passed through\nconst conversationData = $('Code in JavaScript').first().json;\n\n// Get Redis data - FIXED: Handle the actual structure\nlet existingHistory = [];\ntry {\n  const redisResult = $input.first().json;\n  \n  // Redis returns data in a dynamic property name\n  if (redisResult) {\n    const propertyNames = Object.keys(redisResult);\n    if (propertyNames.length > 0) {\n      const firstProperty = propertyNames[0];\n      const redisValue = redisResult[firstProperty];\n      \n      if (redisValue) {\n        existingHistory = JSON.parse(redisValue);\n      }\n    }\n  }\n} catch (error) {\n  console.log('No existing history, starting fresh');\n  existingHistory = [];\n}\n\n// Count previous user messages\nconst previousUserMessages = existingHistory.filter(msg => msg.role === 'user').length;\n\n// Add new user message to history\nconst newUserMessage = {\n  role: 'user',\n  content: conversationData.userMessage,\n  timestamp: conversationData.timestamp\n};\n\nconst newHistory = [...existingHistory, newUserMessage];\n\n// Generate bot response\nconst botResponse = {\n  role: 'assistant',\n  content: `I received: \"${conversationData.userMessage}\". This is message #${previousUserMessages + 1} in our conversation.`,\n  timestamp: new Date().toISOString()\n};\n\nnewHistory.push(botResponse);\n\n// Keep only last 20 messages (10 conversation turns)\nlet finalHistory = newHistory;\nif (newHistory.length > 20) {\n  finalHistory = newHistory.slice(-20);\n}\n\nreturn {\n  conversationId: conversationData.conversationId,\n  redisKey: conversationData.redisKey,\n  chatHistory: finalHistory,\n  latestResponse: botResponse.content,\n  historyCount: previousUserMessages + 1\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -224
+      ],
+      "id": "55ed8cb9-8de9-417b-8404-ca3d816f38bb",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.redisKey }}",
+        "value": "={{ $json.chatHistoryString }}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        -224
+      ],
+      "id": "149b8fbd-915d-4875-ac6a-0eeeae397c0f",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "id": "yXsSNEwc8Lpizqg5",
+          "name": "Redis account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify({\n  conversationId: $json.conversationId,\n  message: $json.latestResponse,\n  historyCount: $json.historyCount,\n  timestamp: $now.toISO()\n})}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1280,
+        -224
+      ],
+      "id": "91fcaf73-0e3f-4cfd-9fca-5a0e90001250",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn {\n  conversationId: data.conversationId,\n  redisKey: data.redisKey,\n  chatHistoryString: JSON.stringify(data.chatHistory),\n  latestResponse: data.latestResponse,\n  historyCount: data.historyCount\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        -224
+      ],
+      "id": "0b2aab86-3883-4680-b57f-2f80adf57880",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
         "mode": "expression",
         "numberOutputs": 3,
-        "output": "={{ \n  $json.action === \"chat\" ? 0 :\n  $json.action === \"get\" ? 1 :\n  $json.action === \"clear\" ? 2 : 3\n}}",
-        "options": {}
+        "output": "={{ \n  $json.action === \"chat\" ? 0 :\n  $json.action === \"get\" ? 1 :\n  $json.action === \"clear\" ? 2 : 3\n}}"
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
@@ -44,98 +144,10 @@
       "typeVersion": 1,
       "position": [
         384,
-        -224
-      ],
-      "id": "7a5d27ac-d0a1-4b3d-8b56-9a7415c55446",
-      "name": "Redis GET (Chat)",
-      "alwaysOutputData": false,
-      "credentials": {
-        "redis": {
-          "id": "yXsSNEwc8Lpizqg5",
-          "name": "Redis account 2"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Get the conversation data that was passed through\nconst conversationData = $('Code in JavaScript').first().json;\n\n// Get Redis data - FIXED: Handle the actual structure\nlet existingHistory = [];\ntry {\n  const redisResult = $input.first().json;\n  console.log('Redis GET result:', JSON.stringify(redisResult));\n  \n  if (redisResult && Object.keys(redisResult).length > 0) {\n    const firstKey = Object.keys(redisResult)[0];\n    if (redisResult[firstKey]) {\n      existingHistory = JSON.parse(redisResult[firstKey]);\n      console.log(`Successfully parsed ${existingHistory.length} messages from Redis`);\n    }\n  }\n} catch (error) {\n  console.error('Error parsing Redis data:', error.message);\n  existingHistory = [];\n}\n\n// Count previous user messages\nconst previousUserMessages = existingHistory.filter(msg => msg.role === 'user').length;\n\n// Add new user message to history\nconst newUserMessage = {\n  role: 'user',\n  content: conversationData.userMessage,\n  timestamp: conversationData.timestamp\n};\n\nconst newHistory = [...existingHistory, newUserMessage];\n\n// Generate bot response\nconst botResponse = {\n  role: 'assistant',\n  content: `I received: \"${conversationData.userMessage}\". This is message #${previousUserMessages + 1} in our conversation.`,\n  timestamp: new Date().toISOString()\n};\n\nnewHistory.push(botResponse);\n\n// Keep only last 20 messages (10 conversation turns)\nlet finalHistory = newHistory;\nif (newHistory.length > 20) {\n  console.log(`Trimming history from ${newHistory.length} to 20 messages`);\n  finalHistory = newHistory.slice(-20);\n}\n\nreturn {\n  conversationId: conversationData.conversationId,\n  redisKey: conversationData.redisKey,\n  chatHistory: finalHistory,\n  latestResponse: botResponse.content,\n  historyCount: previousUserMessages + 1\n};"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        608,
-        -224
-      ],
-      "id": "55ed8cb9-8de9-417b-8404-ca3d816f38bb",
-      "name": "Process Chat Message"
-    },
-    {
-      "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst historyToSave = data.chatHistory || [];\n\n// Log before saving\nconsole.log('Preparing to save to Redis:', {\n    key: data.redisKey,\n    historyLength: historyToSave.length,\n    firstMessage: historyToSave.length > 0 ? historyToSave[0] : 'No messages'\n});\n\n// Ensure we have a valid array to store\nif (!Array.isArray(historyToSave)) {\n    console.error('Invalid chat history format, converting to array');\n    historyToSave = [];\n}\n\nreturn {\n    conversationId: data.conversationId,\n    redisKey: data.redisKey,\n    chatHistoryString: JSON.stringify(historyToSave),\n    latestResponse: data.latestResponse,\n    historyCount: data.historyCount\n};"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        832,
-        -224
-      ],
-      "id": "0b2aab86-3883-4680-b57f-2f80adf57880",
-      "name": "Prepare Redis Save"
-    },
-    {
-      "parameters": {
-        "operation": "set",
-        "key": "={{ $json.redisKey }}",
-        "value": "={{ $json.chatHistoryString }}",
-        "expire": true,
-        "ttl": 86400
-      },
-      "type": "n8n-nodes-base.redis",
-      "typeVersion": 1,
-      "position": [
-        1056,
-        -224
-      ],
-      "id": "149b8fbd-915d-4875-ac6a-0eeeae397c0f",
-      "name": "Redis SET (Chat)",
-      "credentials": {
-        "redis": {
-          "id": "yXsSNEwc8Lpizqg5",
-          "name": "Redis account 2"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{\n  JSON.stringify({\n    conversationId: $json.conversationId,\n    message: $json.latestResponse,\n    historyCount: $json.historyCount,\n    status: 'success',\n    timestamp: $now.toISO()\n  })\n}}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1280,
-        -224
-      ],
-      "id": "91fcaf73-0e3f-4cfd-9fca-5a0e90001250",
-      "name": "Respond to Webhook (Chat)"
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "key": "={{ $json.redisKey }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.redis",
-      "typeVersion": 1,
-      "position": [
-        384,
         -32
       ],
       "id": "f1b9697c-e9a8-49c0-ae70-1c94415517f1",
-      "name": "Redis GET (Get History)",
+      "name": "Redis2",
       "alwaysOutputData": false,
       "credentials": {
         "redis": {
@@ -147,7 +159,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const conversationData = $('Code in JavaScript').first().json;\nlet history = [];\nlet message = 'No history found';\n\ntry {\n    const redisResult = $input.first().json;\n    console.log('GET action - Redis result:', JSON.stringify(redisResult));\n    \n    if (redisResult && Object.keys(redisResult).length > 0) {\n        const firstKey = Object.keys(redisResult)[0];\n        if (redisResult[firstKey]) {\n            history = JSON.parse(redisResult[firstKey]);\n            const userMessages = history.filter(msg => msg.role === 'user').length;\n            message = `Retrieved ${userMessages} conversation turns`;\n            console.log(`Found ${history.length} messages in history`);\n        }\n    }\n} catch (error) {\n    message = `Error retrieving history: ${error.message}`;\n    console.error('Error in GET action:', error);\n}\n\nreturn {\n    conversationId: conversationData.conversationId,\n    action: 'get',\n    message: message,\n    history: history,\n    historyCount: history.filter(msg => msg.role === 'user').length,\n    timestamp: new Date().toISOString()\n};"
+        "jsCode": "const conversationData = $('Code in JavaScript').first().json;\nlet history = [];\nlet message = 'No history found';\n\ntry {\n  const redisResult = $input.first().json;\n  \n  if (redisResult) {\n    const propertyNames = Object.keys(redisResult);\n    if (propertyNames.length > 0) {\n      const firstProperty = propertyNames[0];\n      const redisValue = redisResult[firstProperty];\n      \n      if (redisValue) {\n        history = JSON.parse(redisValue);\n        const userMessages = history.filter(msg => msg.role === 'user').length;\n        message = `Retrieved ${userMessages} conversation turns`;\n      }\n    }\n  }\n} catch (error) {\n  message = 'Error retrieving history';\n}\n\nreturn {\n  conversationId: conversationData.conversationId,\n  action: 'get',\n  message: message,\n  history: history,\n  historyCount: history.filter(msg => msg.role === 'user').length,\n  timestamp: new Date().toISOString()\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -156,12 +168,12 @@
         -32
       ],
       "id": "4ac3dc61-3602-4880-a843-75a3578da21f",
-      "name": "Process Get History"
+      "name": "Code in JavaScript2"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  JSON.stringify({\n    conversationId: $json.conversationId,\n    action: $json.action,\n    message: $json.message,\n    historyCount: $json.historyCount,\n    history: $json.history,\n    status: 'success',\n    timestamp: $now.toISO()\n  })\n}}",
+        "responseBody": "={{JSON.stringify({\n  conversationId: $json.conversationId,\n  action: $json.action,\n  message: $json.message,\n  historyCount: $json.historyCount,\n  history: $json.history,\n  timestamp: $now.toISO()\n})}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -171,7 +183,7 @@
         -32
       ],
       "id": "435be7a9-55f7-40eb-8047-b4bf30ca93df",
-      "name": "Respond to Webhook (Get)"
+      "name": "Respond to Webhook1"
     },
     {
       "parameters": {
@@ -185,7 +197,7 @@
         160
       ],
       "id": "9a300fbb-54bc-4b7b-ba88-da87c4ebc7cb",
-      "name": "Redis DELETE (Clear)",
+      "name": "Redis3",
       "credentials": {
         "redis": {
           "id": "yXsSNEwc8Lpizqg5",
@@ -197,7 +209,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  JSON.stringify({\n    conversationId: $json.conversationId,\n    action: $json.action,\n    message: \"Chat history cleared successfully\",\n    status: \"success\",\n    timestamp: $now.toISO()\n  })\n}}",
+        "responseBody": "={{JSON.stringify({\n  conversationId: $json.conversationId,\n  action: $json.action,\n  message: \"Chat history cleared successfully\",\n  status: \"success\",\n  timestamp: $now.toISO()\n})}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -207,20 +219,7 @@
         160
       ],
       "id": "416f6e55-77ca-4c86-b1e3-6660c5e72356",
-      "name": "Respond to Webhook (Clear)"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = items[0].json.body || {};\nconst conversationId = body.conversationId || `conv_${Date.now()}`;\nconst userMessage = body.message || '';\nconst action = body.action || 'chat';\n\n// Enhanced validation\nif (action === 'chat' && !userMessage) {\n    throw new Error('Message is required for chat action');\n}\n\n// Only include userMessage for chat actions\nconst effectiveMessage = (action === 'chat') ? userMessage : '';\n\n// Log the incoming request for debugging\nconsole.log('Incoming request:', {\n    conversationId,\n    action,\n    hasMessage: !!userMessage,\n    timestamp: new Date().toISOString()\n});\n\nreturn [{\n    json: {\n        conversationId: conversationId,\n        userMessage: effectiveMessage,\n        action: action,\n        timestamp: new Date().toISOString(),\n        redisKey: `chat:${conversationId}`,\n        isChatAction: (action === 'chat')\n    }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -64,
-        -32
-      ],
-      "id": "e5152016-9316-4487-acd7-202996bf2642",
-      "name": "Process Request"
+      "name": "Respond to Webhook2"
     }
   ],
   "connections": {
@@ -228,14 +227,14 @@
       "main": [
         [
           {
-            "node": "Process Request",
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Request": {
+    "Code in JavaScript": {
       "main": [
         [
           {
@@ -246,44 +245,44 @@
         ]
       ]
     },
-    "Redis GET (Chat)": {
+    "Redis": {
       "main": [
         [
           {
-            "node": "Process Chat Message",
+            "node": "Code in JavaScript1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Chat Message": {
+    "Code in JavaScript1": {
       "main": [
         [
           {
-            "node": "Prepare Redis Save",
+            "node": "Code in JavaScript3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepare Redis Save": {
+    "Redis1": {
       "main": [
         [
           {
-            "node": "Redis SET (Chat)",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Redis SET (Chat)": {
+    "Code in JavaScript3": {
       "main": [
         [
           {
-            "node": "Respond to Webhook (Chat)",
+            "node": "Redis1",
             "type": "main",
             "index": 0
           }
@@ -294,54 +293,54 @@
       "main": [
         [
           {
-            "node": "Redis GET (Chat)",
+            "node": "Redis",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Redis GET (Get History)",
+            "node": "Redis2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Redis DELETE (Clear)",
+            "node": "Redis3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Redis GET (Get History)": {
+    "Redis2": {
       "main": [
         [
           {
-            "node": "Process Get History",
+            "node": "Code in JavaScript2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Get History": {
+    "Code in JavaScript2": {
       "main": [
         [
           {
-            "node": "Respond to Webhook (Get)",
+            "node": "Respond to Webhook1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Redis DELETE (Clear)": {
+    "Redis3": {
       "main": [
         [
           {
-            "node": "Respond to Webhook (Clear)",
+            "node": "Respond to Webhook2",
             "type": "main",
             "index": 0
           }
@@ -349,10 +348,9 @@
       ]
     }
   },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "tags": [],
-  "pinData": {}
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  }
 }

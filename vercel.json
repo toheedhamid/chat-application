@@ -2,6 +2,10 @@
   "version": 2,
   "builds": [
     {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "react-chat-app/package.json",
       "use": "@vercel/static-build",
       "config": {
@@ -11,8 +15,15 @@
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "/react-chat-app/$1"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

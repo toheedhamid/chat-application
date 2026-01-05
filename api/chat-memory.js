@@ -8,11 +8,49 @@ let redis = null;
 
 async function getRedisClient() {
   if (!redis) {
-    redis = new Redis(process.env.REDIS_URL, {
-      password: process.env.REDIS_PASSWORD,
-      retryDelayOnFailover: 100,
-      maxRetriesPerRequest: 3,
-    });
+    try {
+      // Support both Redis URL format and separate host/port
+      const redisUrl = process.env.REDIS_URL;
+      const redisPassword = process.env.REDIS_PASSWORD;
+      
+      if (!redisUrl) {
+        throw new Error('REDIS_URL environment variable is not set');
+      }
+
+      // Parse Redis URL if it's a full connection string
+      const config = {
+        retryDelayOnFailover: 100,
+        maxRetriesPerRequest: 3,
+        connectTimeout: 10000,
+        lazyConnect: false,
+        enableReadyCheck: true,
+      };
+
+      // If password is provided separately, use it
+      if (redisPassword) {
+        config.password = redisPassword;
+      }
+
+      redis = new Redis(redisUrl, config);
+
+      // Handle connection errors
+      redis.on('error', (err) => {
+        console.error('Redis connection error:', err);
+        redis = null; // Reset connection on error
+      });
+
+      redis.on('connect', () => {
+        console.log('Redis connected successfully');
+      });
+
+      // Test connection
+      await redis.ping();
+      console.log('Redis ping successful');
+    } catch (error) {
+      console.error('Failed to initialize Redis:', error);
+      redis = null;
+      throw error;
+    }
   }
   return redis;
 }
@@ -39,7 +77,7 @@ async function generateBotResponse(userMessage, conversationHistory) {
   return `${randomResponse}. This is message #${messageCount + 1} in our conversation.`;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -54,12 +92,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { body } = req;
+    // Parse request body
+    let body;
+    if (typeof req.body === 'string') {
+      body = JSON.parse(req.body);
+    } else {
+      body = req.body || {};
+    }
+
     const conversationId = body.conversationId || `conv_${Date.now()}`;
     const userMessage = body.message || '';
     const action = body.action || 'chat';
 
-    const redisClient = await getRedisClient();
+    console.log('Chat memory request:', { conversationId, action, hasMessage: !!userMessage });
+
+    // Get Redis client
+    let redisClient;
+    try {
+      redisClient = await getRedisClient();
+    } catch (error) {
+      console.error('Redis connection failed:', error);
+      return res.status(503).json({ 
+        error: 'Redis service unavailable',
+        message: 'Please check your Redis configuration'
+      });
+    }
+
     const redisKey = `chat:${conversationId}`;
 
     switch (action) {
@@ -73,24 +131,40 @@ export default async function handler(req, res) {
         return await handleClear(redisClient, redisKey, conversationId, res);
       
       default:
-        return res.status(400).json({ error: 'Invalid action' });
+        return res.status(400).json({ error: 'Invalid action. Must be "chat", "get", or "clear"' });
     }
   } catch (error) {
     console.error('Chat memory error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
 }
 
 async function handleChat(redisClient, redisKey, conversationId, userMessage, res) {
+  // Validate input
+  if (!userMessage || userMessage.trim() === '') {
+    return res.status(400).json({ 
+      error: 'Message is required for chat action',
+      conversationId 
+    });
+  }
+
   // Get existing conversation history
   let existingHistory = [];
   try {
     const stored = await redisClient.get(redisKey);
     if (stored) {
       existingHistory = JSON.parse(stored);
+      console.log(`Retrieved ${existingHistory.length} messages from Redis for key: ${redisKey}`);
+    } else {
+      console.log(`No existing history found for key: ${redisKey}, starting fresh`);
     }
   } catch (error) {
-    console.log('No existing history, starting fresh');
+    console.error('Error retrieving history from Redis:', error);
+    // Continue with empty history
+    existingHistory = [];
   }
 
   // Add new user message
@@ -114,11 +188,26 @@ async function handleChat(redisClient, redisKey, conversationId, userMessage, re
   // Keep only last 20 messages (10 conversation turns)
   let finalHistory = newHistory;
   if (newHistory.length > 20) {
+    console.log(`Trimming history from ${newHistory.length} to 20 messages`);
     finalHistory = newHistory.slice(-20);
   }
 
   // Store updated history in Redis
-  await redisClient.setex(redisKey, 86400, JSON.stringify(finalHistory)); // 24 hours TTL
+  try {
+    const historyString = JSON.stringify(finalHistory);
+    await redisClient.setex(redisKey, 86400, historyString); // 24 hours TTL
+    console.log(`Successfully saved ${finalHistory.length} messages to Redis key: ${redisKey}`);
+  } catch (error) {
+    console.error('Error saving to Redis:', error);
+    // Still return response even if save fails
+    return res.status(200).json({
+      conversationId,
+      message: botResponse.content,
+      historyCount: finalHistory.filter(msg => msg.role === 'user').length,
+      timestamp: new Date().toISOString(),
+      warning: 'Chat response generated but history may not have been saved'
+    });
+  }
 
   return res.status(200).json({
     conversationId,

@@ -1,0 +1,12 @@
+{
+  "name": "chat-api",
+  "version": "1.0.0",
+  "description": "Vercel serverless functions for chat memory management",
+  "main": "chat-memory.js",
+  "dependencies": {
+    "ioredis": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
