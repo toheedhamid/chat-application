@@ -4,8 +4,15 @@
 This guide helps you deploy n8n workflows to Railway while keeping your Vercel deployment for the frontend and API.
 
 ## Architecture
-- **Railway**: Hosts n8n workflows
+- **Railway**: Hosts n8n workflows (with automatic workflow import)
 - **Vercel**: Hosts React frontend + API serverless functions
+
+## Automatic Workflow Deployment
+
+All workflows from `n8n_workflows/` are automatically imported when n8n starts:
+- ✅ 12 workflows automatically imported
+- ✅ AnswerQuery2 automatically activated
+- ✅ No manual steps required
 
 ## Step 1: Railway Project Setup
 
@@ -148,15 +155,41 @@ const API_BASE_URL = process.env.REACT_APP_N8N_BASE_URL ||
                      '/api';
 ```
 
-## Step 7: Import Workflows
+## Step 7: Automatic Workflow Import
 
+**✅ Workflows are automatically imported on deployment!**
+
+When n8n starts on Railway, all workflows from the `n8n_workflows/` folder are automatically imported:
+- All 12 workflows are imported automatically
+- AnswerQuery2 is automatically activated (main workflow)
+- Existing workflows are updated if they already exist
+- No manual import needed!
+
+### Workflows Auto-Imported:
+1. **AnswerQuery2** (main - automatically activated)
+2. chat-memory-workflow.json
+3. Conversation Summarization.json
+4. EstimateBallpark.json
+5. GetCaseStudies.json
+6. kb-status-workflow.json
+7. load-test-workflow.json
+8. Navigate.json
+9. NightlyIngest.json
+10. predict.json
+11. reindex-now-workflow.json
+12. Typing Indicator.json
+
+### Verify Workflows Are Imported:
 1. Access n8n interface at your Railway URL
-2. Go to Workflows → Import from File
-3. Import workflows from `n8n_workflows/`:
-   - `chat-memory-workflow.json`
-   - `AnswerQuery2.json`
-   - `EstimateBallpark.json`
-   - etc.
+2. Go to Workflows page
+3. You should see all 12 workflows listed
+4. Verify AnswerQuery2 is active (green toggle)
+
+### Manual Re-Import (if needed):
+If you need to re-import workflows manually:
+1. SSH into Railway container (if available)
+2. Run: `node /data/scripts/import-workflows.js`
+3. Or use n8n UI: Workflows → Import from File
 
 ## Step 8: Configure Workflow Webhooks
 
