@@ -2,15 +2,15 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "react-chat-app/package.json",
       "use": "@vercel/static-build",
       "config": {
         "distDir": "build"
       }
+    },
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -19,16 +19,8 @@
       "dest": "/api/$1"
     },
     {
-      "src": "/static/(.*)",
-      "dest": "/react-chat-app/build/static/$1"
-    },
-    {
-      "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|svg|json|woff|woff2|ttf|eot|map))",
-      "dest": "/react-chat-app/build/$1"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/react-chat-app/build/index.html"
+      "dest": "/react-chat-app/$1"
     }
   ]
 }
