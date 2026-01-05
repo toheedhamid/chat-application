@@ -1,0 +1,83 @@
+{
+  "name": "EstimateBallpark",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "estimate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e6f27c11-9aa1-45b8-abd4-35ab9f53a9b7",
+      "name": "Webhook",
+      "webhookId": "4cd314f8-2c3f-4eed-bf91-2ebbd819e5f4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract data from webhook\nconst webhookData = items[0].json;\nconst serviceType = webhookData.body.service_type;\nconst pages = webhookData.body.pages || 1;\n\n// Calculate estimate based on service type and pages\nlet estimate = 0;\nlet priceBreakdown = '';\n\nif (serviceType === \"web app\" || serviceType === \"website\") {\n  // Website/Web App Pricing Logic\n  if (pages === 1) {\n    estimate = 500; // Single page website (landing page)\n    priceBreakdown = \"Single page landing site\";\n  } else if (pages >= 2 && pages <= 5) {\n    estimate = 1500 + (pages - 2) * 300; // Base $1500 + $300 per additional page\n    priceBreakdown = `Small website: Base $1500 + ${pages - 2} additional pages × $300`;\n  } else if (pages >= 6 && pages <= 10) {\n    estimate = 2500 + (pages - 6) * 250; // Base $2500 + $250 per additional page\n    priceBreakdown = `Medium website: Base $2500 + ${pages - 6} additional pages × $250`;\n  } else if (pages > 10 && pages <= 20) {\n    estimate = 4000 + (pages - 10) * 200; // Base $4000 + $200 per additional page\n    priceBreakdown = `Large website: Base $4000 + ${pages - 10} additional pages × $200`;\n  } else {\n    estimate = 6000 + (pages - 20) * 150; // Base $6000 + $150 per additional page\n    priceBreakdown = `Enterprise website: Base $6000 + ${pages - 20} additional pages × $150`;\n  }\n  \n} else if (serviceType === \"mobile app\") {\n  // Mobile App Pricing Logic (typically more expensive than websites)\n  if (pages <= 3) {\n    estimate = 3000; // Basic mobile app with few screens\n    priceBreakdown = \"Basic mobile app (1-3 screens)\";\n  } else if (pages >= 4 && pages <= 8) {\n    estimate = 5000 + (pages - 4) * 500; // Base $5000 + $500 per additional screen\n    priceBreakdown = `Standard mobile app: Base $5000 + ${pages - 4} additional screens × $500`;\n  } else if (pages >= 9 && pages <= 15) {\n    estimate = 7500 + (pages - 9) * 400; // Base $7500 + $400 per additional screen\n    priceBreakdown = `Advanced mobile app: Base $7500 + ${pages - 9} additional screens × $400`;\n  } else {\n    estimate = 10000 + (pages - 15) * 300; // Base $10000 + $300 per additional screen\n    priceBreakdown = `Complex mobile app: Base $10000 + ${pages - 15} additional screens × $300`;\n  }\n  \n} else {\n  // Default/Unknown service type\n  estimate = 1000;\n  priceBreakdown = \"Custom service - requires consultation\";\n}\n\n// Return in correct n8n format\nreturn [\n  {\n    json: {\n      estimate: estimate,\n      service_type: serviceType,\n      pages: pages,\n      price_breakdown: priceBreakdown,\n      details: `Estimated cost for ${serviceType} with ${pages} ${serviceType === \"mobile app\" ? \"screens\" : \"pages\"}`,\n      currency: \"USD\",\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "f8d057a6-f0d4-4be2-bcf7-c6aae7718368",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "5cd3fd60-7628-4ccc-a76d-c5b6580fa6db",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ca90cc97-acb8-4158-9550-4cb58d51058b",
+  "meta": {
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  },
+  "id": "j8F3myzVU44EVaCH",
+  "tags": []
+}

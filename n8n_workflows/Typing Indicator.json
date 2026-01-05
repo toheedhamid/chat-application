@@ -1,0 +1,125 @@
+{
+  "name": "Typing Indicator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat-with-typing",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c57fc129-9c7b-429a-9469-ae067cda4b79",
+      "name": "Webhook",
+      "webhookId": "c053abab-97cc-4ae6-9313-ca369ba9d049"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"thinking\",\n  \"message\": \"I'm processing your request...\",\n  \"timestamp\": \"{{$now.toISO()}}\",\n  \"conversationId\": \"{{$json.conversationId || 'default'}}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        208,
+        0
+      ],
+      "id": "df540d93-7c45-4938-9b1e-d65ca8aee5f8",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the user's message from webhook\nconst userMessage = $node[\"Webhook\"].json.body?.message || '';\nconst conversationId = $node[\"Webhook\"].json.body?.conversationId || `conv_${Date.now()}`;\n\nconsole.log('Processing message:', userMessage);\n\n// Simulate processing time (2-3 seconds)\n// In real use, this is where you'd call your LLM/RAG pipeline\nawait new Promise(resolve => setTimeout(resolve, 2500));\n\n// Generate response\nconst botResponse = {\n  conversationId: conversationId,\n  message: `Thank you for your message: \"${userMessage}\". I've processed it successfully!`,\n  timestamp: new Date().toISOString(),\n  userMessage: userMessage\n};\n\nreturn [{ json: botResponse }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "2983420c-1fa0-4459-8fa0-d5cd64c01f7f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/chat-response",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        640,
+        0
+      ],
+      "id": "6ec27055-1184-484c-9b85-772dde2b1645",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8ce5e178-02d0-4246-befb-3c483032fe84",
+  "meta": {
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  },
+  "id": "2uMJs8kckUU6IvE1",
+  "tags": []
+}

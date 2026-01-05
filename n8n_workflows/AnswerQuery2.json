@@ -1,0 +1,897 @@
+{
+  "name": "AnswerQuery2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "answer",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -4384,
+        1120
+      ],
+      "id": "48cd48bb-6d2b-48e4-a40d-0d807800819f",
+      "name": "Webhook",
+      "webhookId": "59d99582-a83d-4285-a173-01d37cb3ae35"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and analyze user query\nconst body = items[0].json.body || {};\nconst query = body.text?.trim() || '';\nconst conversationId = body.conversationId || `conv_${Date.now()}`; // ADD THIS\n\n// Existing vagueness detection code...\nconst wordCount = query.split(' ').filter(w => w.length > 0).length;\nconst vagueStarters = ['what', 'tell', 'explain', 'help', 'information', 'about', 'hi', 'hello', 'hey'];\nconst startsVague = vagueStarters.some(word => \n  query.toLowerCase().startsWith(word + ' ') || query.toLowerCase() === word\n);\n\nconst specificTopics = ['price', 'cost', 'support', 'timeline', 'payment', 'service', 'website', 'mobile', 'app', 'hour', 'week', 'month', 'pay', 'credit', 'paypal'];\nconst hasTopic = specificTopics.some(topic => query.toLowerCase().includes(topic));\n\nconst isVague = wordCount < 3 || (startsVague && !hasTopic) || query.length < 5;\n\nreturn [{\n  json: {\n    query: query,\n    conversationId: conversationId,  // ADD THIS\n    redisKey: `chat:${conversationId}`,  // ADD THIS\n    isVague: isVague,\n    wordCount: wordCount,\n    timestamp: new Date().toISOString()  // ADD THIS\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4160,
+        1120
+      ],
+      "id": "650d5908-37cb-4e53-916b-40d9bacc4f0d",
+      "name": "Process Query"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0cf8a557-f5ec-4129-9cfa-b6cc0ad432ba",
+              "leftValue": "={{ $json.isVague }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2368,
+        1408
+      ],
+      "id": "48280d7f-b392-4912-b6b6-cc61285f8944",
+      "name": "Check if Vague"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate clarifying question for vague queries\nconst clarifications = [\n  \"I can help with that! Are you interested in:\\\\n• Web or mobile development pricing?\\\\n• Support hours and availability?\\\\n• Project timelines?\\\\n• Payment methods?\",\n  \"Which topic would you like information about?\\\\n• Pricing for web/mobile services\\\\n• Support availability\\\\n• Project duration\\\\n• Payment options\",\n  \"I'd be happy to help! Please specify:\\\\n• Are you asking about pricing?\\\\n• Need support information?\\\\n• Curious about timelines?\\\\n• Want payment details?\"\n];\n\nconst randomClarification = clarifications[Math.floor(Math.random() * clarifications.length)];\n\nreturn [{\n  json: {\n    type: \"clarification\",\n    message: randomClarification,\n    sources: []\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2144,
+        1312
+      ],
+      "id": "f2b7ab3f-9727-4bac-885f-d69006e69468",
+      "name": "Clarification Response"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -1920,
+        1312
+      ],
+      "id": "b6842872-9603-48d9-8160-39a8a032c252",
+      "name": "Respond (Clarification)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://embedding-service/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": \"{{ $json.original_text || $json.query || $json.original_query || 'general inquiry' }}\"\n}",
+        "options": {
+          "lowercaseHeaders": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1696,
+        1504
+      ],
+      "id": "f573565d-ec1c-4b8b-a76b-2ce1dc487940",
+      "name": "HTTP Request Embed Query",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract embedding from response\nconst embeddingResponse = items[0].json;\n\nif (!embeddingResponse?.data?.[0]?.embedding) {\n  throw new Error(\"Embedding service error: \" + JSON.stringify(embeddingResponse));\n}\n\nconst embedding = embeddingResponse.data[0].embedding;\nconst query = $node[\"Process Query\"].json.query;\n\nreturn [{\n  json: {\n    vector: embedding,\n    topK: 5,\n    includeMetadata: true,\n    includeValues: false,\n    namespace: \"\",\n    filter: {},\n    query: query\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1472,
+        1504
+      ],
+      "id": "c397bfd7-6b6c-45f0-abfa-417f336027b8",
+      "name": "Prepare Pinecone Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://knowledge-base-h27dgtd.svc.aped-4627-b74a.pinecone.io/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Api-Key",
+              "value": "YOUR_PINECONE_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  vector: $json.vector,\n  top_k: $json.topK,\n  include_metadata: $json.includeMetadata,\n  include_values: $json.includeValues,\n  namespace: $json.namespace\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1248,
+        1504
+      ],
+      "id": "5f5b3a57-a4d6-4485-946c-b60069bd2389",
+      "name": "Search Pinecone",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Pinecone search results\nconst matches = items[0].json.matches || [];\nconst query = $node[\"Process Query\"].json.query || '';\n\nconsole.log('=== PINE CONE RESULTS ===');\nconsole.log('Query:', query);\nconsole.log('Total matches:', matches.length);\nconsole.log('All matches with scores:', matches.map(m => ({ \n  id: m.id, \n  score: m.score,\n  topic: m.metadata?.topic,\n  page: m.metadata?.page \n})));\n\nif (!matches.length) {\n  console.log('No matches found at all');\n  return [{ \n    json: { \n      hasContext: false,\n      query: query,\n      matches: [],\n      sources: [],\n      reason: 'no_matches'\n    } \n  }];\n}\n\n// STRATEGY 1: Try strict filter first\nlet relevantMatches = matches.filter(m => m.score > 0.4);\n\n// STRATEGY 2: If no matches with strict filter, use top 3\nif (relevantMatches.length === 0) {\n  console.log('No matches with score > 0.4, using top 3 matches');\n  relevantMatches = matches\n    .sort((a, b) => b.score - a.score)\n    .slice(0, 3);\n}\n\n// STRATEGY 3: If still no matches, use all with score > 0.1\nif (relevantMatches.length === 0) {\n  console.log('Using matches with score > 0.1');\n  relevantMatches = matches.filter(m => m.score > 0.1);\n}\n\nconsole.log('Selected relevant matches:', relevantMatches.length);\nconsole.log('Match details:', relevantMatches.map(m => ({ \n  id: m.id, \n  score: m.score,\n  textPreview: m.metadata?.text?.substring(0, 50) + '...' \n})));\n\n// Build context from matches\nconst context = relevantMatches\n  .map(m => {\n    const source = m.metadata?.page ? `[Source: ${m.metadata.page}]` : '';\n    const text = m.metadata?.text || \"No text found\";\n    return `${text} ${source}`;\n  })\n  .join(\"\\n\\n\");\n\n// Extract sources with metadata\nconst sources = relevantMatches.map(m => ({\n  text: m.metadata?.text?.substring(0, 150) + \"...\" || \"No text\",\n  topic: m.metadata?.topic || \"general\",\n  page: m.metadata?.page || \"unknown\",\n  score: m.score.toFixed(3),\n  id: m.id,\n  type: m.metadata?.type || 'document'\n}));\n\nconst hasContext = relevantMatches.length > 0;\n\nconsole.log('Final result:', {\n  hasContext,\n  matchCount: relevantMatches.length,\n  contextLength: context.length,\n  sourcesCount: sources.length\n});\n\nreturn [{\n  json: {\n    hasContext: hasContext,\n    context: context,\n    query: query,\n    matches: relevantMatches,\n    sources: sources,\n    matchCount: relevantMatches.length,\n    maxScore: relevantMatches.length > 0 ? Math.max(...relevantMatches.map(m => m.score)) : 0,\n    avgScore: relevantMatches.length > 0 ? relevantMatches.reduce((sum, m) => sum + m.score, 0) / relevantMatches.length : 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        1504
+      ],
+      "id": "c650c45b-234c-4da2-a8a4-fef9e3ed19a3",
+      "name": "Process Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $json.context;\nconst query = $json.query;\nconst sources = $json.sources;\nconst matchCount = $json.matchCount;\n\n// Get conversation context from the actual node name\nconst conversationContext = $node[\"Code in JavaScript5\"].json.conversationContext || '';\nconst hasHistory = $node[\"Code in JavaScript5\"].json.hasHistory || false;\n\n// Build conversation history section\nlet historySection = '';\nif (hasHistory && conversationContext) {\n  historySection = `\\n\\nPREVIOUS CONVERSATION:\\n${conversationContext}\\n`;\n}\n\nconst prompt = `You are a helpful and accurate customer support assistant for TheHexaa, a software development company. Answer the user's question based STRICTLY on the provided context. Do not use any external knowledge.\n\nIMPORTANT RULES:\n1. Answer ONLY using information from the context below\n2. If the context doesn't contain the answer, say 'I don't have that specific information in my knowledge base'\n3. Be concise and factual\n4. If mentioning prices or numbers, include them exactly as in the context\n5. Do not make up or assume any information\n6. Use the conversation history to maintain context and provide relevant follow-up answers\n\nCONTEXT (from ${matchCount} relevant sources):\n${context}${historySection}\n\nCURRENT USER QUESTION: ${query}\n\nANSWER BASED ON CONTEXT:`;\n\nreturn [{\n  json: {\n    prompt: prompt,\n    query: query,\n    sources: sources,\n    matchCount: matchCount,\n    conversationId: $node[\"Code in JavaScript5\"].json.conversationId,\n    updatedHistory: $node[\"Code in JavaScript5\"].json.conversationHistory\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        1504
+      ],
+      "id": "296e28da-5695-42df-9443-9811c1360e7d",
+      "name": "Prepare LLM Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GROQ_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"model\": \"llama-3.3-70b-versatile\",\n    \"messages\": [\n      {\n        \"role\": \"system\",\n        \"content\": \"You are a helpful, accurate, and concise customer support assistant. Answer questions based only on the provided context.\"\n      },\n      {\n        \"role\": \"user\",\n        \"content\": $json.prompt\n      }\n    ],\n    \"temperature\": 0.1,\n    \"max_tokens\": 500,\n    \"top_p\": 0.9\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -576,
+        1504
+      ],
+      "id": "4a2c07bf-80e3-4f66-bad3-2d820735c33d",
+      "name": "Call Groq LLM"
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmResponse = items[0].json;\nconst answer = llmResponse.choices?.[0]?.message?.content || \"I couldn't generate an answer at this time.\";\nconst sources = $json.sources || [];\nconst matchCount = $json.matchCount || 0;\n\n// Format sources information\nlet sourceInfo = \"\";\nif (sources.length > 0) {\n  sourceInfo = \"\\n\\n**Sources used:**\\n\" + \n    sources.map((s, i) => \n      `${i + 1}. \"${s.text}\" (${s.topic}, ${s.page}, confidence: ${s.score})`\n    ).join(\"\\n\");\n}\n\n// Combine answer with sources\nconst finalMessage = answer + sourceInfo;\n\nreturn [{\n  json: {\n    type: \"answer\",\n    message: finalMessage,\n    rawAnswer: answer,\n    sources: sources,\n    matchCount: matchCount\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        1504
+      ],
+      "id": "a3e57277-e4af-441e-8930-bba14829bc15",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"type\": \"{{ $json.type }}\",\n  \"message\": \"{{ $json.message }}\",\n  \"rawAnswer\": \"{{ $json.rawAnswer }}\",\n  \"sources\": {{ JSON.stringify($json.sources) }},\n  \"matchCount\": {{ $json.matchCount }},\n  \"conversationId\": \"{{ $json.conversationId }}\",\n  \"timestamp\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        320,
+        1504
+      ],
+      "id": "d2f0b9b5-69ec-46f5-990a-398656e55d3e",
+      "name": "Respond to Webhook3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get query from correct location - check both possible paths\nconst incomingData = items[0].json;\n\n// Try multiple possible paths for the query\nconst query = incomingData.query || \n             incomingData.body?.text || \n             incomingData.text || \n             incomingData.response?.text || \n             '';\n\nconsole.log('Incoming data structure:', JSON.stringify(incomingData, null, 2));\nconsole.log('Extracted query:', query);\n\n// If no query, return early with defaults\nif (!query || query.trim() === '') {\n  return [{\n    json: {\n      ...incomingData,\n      sentiment: {\n        score: 0,\n        negativeCount: 0,\n        requestsHuman: false,\n        needsEscalation: false,\n        error: 'No query provided'\n      }\n    }\n  }];\n}\n\n// Simple sentiment analysis\nconst negativeWords = [\n  'angry', 'frustrated', 'terrible', 'awful', 'hate', 'worst', \n  'useless', 'disappointed', 'never', 'broken', 'horrible', \n  'annoyed', 'upset', 'bad', 'poor', 'waste'\n];\n\nconst escalationPhrases = [\n  'speak to human', 'talk to person', 'real person', \n  'human agent', 'customer service', 'manager', 'supervisor',\n  'call me', 'phone', 'talk to someone'\n];\n\nconst queryLower = query.toLowerCase();\n\n// Count negative words\nconst negativeCount = negativeWords.filter(word => \n  queryLower.includes(word)\n).length;\n\n// Check for escalation requests\nconst requestsHuman = escalationPhrases.some(phrase => \n  queryLower.includes(phrase)\n);\n\n// Calculate sentiment score (-1 to 1)\nconst sentimentScore = negativeCount > 0 ? -0.3 * negativeCount : 0;\n\n// Determine if escalation needed\nconst needsEscalation = sentimentScore <= -0.5 || requestsHuman;\n\nreturn [{\n  json: {\n    ...incomingData,\n    sentiment: {\n      score: sentimentScore,\n      negativeCount: negativeCount,\n      requestsHuman: requestsHuman,\n      needsEscalation: needsEscalation\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3264,
+        1216
+      ],
+      "id": "e1b9f008-f58a-422d-9bf8-3bf2ab708c7e",
+      "name": "Sentiment Analysis"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a5da29c6-bb75-44d3-b85c-5e9b8f43e741",
+              "leftValue": "={{ $json.sentiment.needsEscalation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "093c6a34-5d96-4b53-8352-4f69c3f5484d",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2592,
+        1312
+      ],
+      "id": "e083085b-a2ed-4ee2-8e26-f20bc0f22caa",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = items[0].json.query;\nconst sentiment = items[0].json.sentiment;\n\nlet message = '';\n\nif (sentiment.requestsHuman) {\n  message = `I understand you'd like to speak with someone from our team. I can help arrange that!\n\nWould you like to:\n- **Book a meeting** with one of our experts\n- **Request a callback** \n- **Get emergency support** (for existing clients)\n\nJust let me know which option works best for you.`;\n} else {\n  message = `I sense you might be having some difficulty. I apologize if I haven't been helpful enough.\n\nLet me connect you with our team directly:\n\n- **Schedule a call** - Book a time that works for you\n- **Email us** - support@yourcompany.com\n- **Live chat** - Connect with a team member now\n\nHow would you like to proceed?`;\n}\n\nreturn [{\n  json: {\n    type: 'escalation',\n    message: message,\n    sentiment: sentiment,\n    options: [\n      { id: 'book', label: 'Book a meeting', action: 'navigate', destination: 'book' },\n      { id: 'email', label: 'Send email', action: 'mailto', destination: 'support@yourcompany.com' },\n      { id: 'continue', label: 'Continue chatting', action: 'dismiss' }\n    ]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2368,
+        1120
+      ],
+      "id": "8fd86957-511d-4ebe-9e2d-efe066c0742a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2144,
+        1120
+      ],
+      "id": "62575cc9-db4d-4774-8e62-8644bf693a85",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Safely get the incoming data\nconst incomingData = items[0]?.json || {};\n\n// Safely extract the query\nconst query = incomingData.query || '';\n\n// If no query, return early\nif (!query || typeof query !== 'string') {\n  return [{\n    json: {\n      ...incomingData,\n      guardrails: {\n        isOffTopic: true,\n        hasBlockedTopic: false,\n        reason: 'no_query',\n        error: 'No valid query found'\n      }\n    }\n  }];\n}\n\nconst queryLower = query.toLowerCase();\n\n// Define allowed topics\nconst allowedTopics = [\n  'price', 'cost', 'payment', 'service', 'website', 'app', 'mobile',\n  'support', 'timeline', 'project', 'development', 'design',\n  'feature', 'technology', 'platform', 'custom', 'ecommerce',\n  'consulting', 'maintenance', 'hosting', 'domain' , 'ai' , 'web',\n  'web_app' , 'webapp' , 'web-app' , 'pricing' , 'iOS' , 'ios'\n];\n\n// Define blocked topics\nconst blockedTopics = [\n  'politics', 'religion', 'medical advice', 'legal advice',\n  'stock', 'investment', 'cryptocurrency', 'gambling'\n];\n\n// Check if query is on-topic\nconst hasAllowedTopic = allowedTopics.some(topic => queryLower.includes(topic));\nconst hasBlockedTopic = blockedTopics.some(topic => queryLower.includes(topic));\n\n// Check if completely off-topic (very short or nonsensical)\nconst isCompleteSentence = queryLower.split(' ').length >= 3;\n\nconst isOffTopic = hasBlockedTopic || (!hasAllowedTopic && !isCompleteSentence);\n\nreturn [{\n  json: {\n    ...incomingData,\n    guardrails: {\n      isOffTopic: isOffTopic,\n      hasBlockedTopic: hasBlockedTopic,\n      reason: hasBlockedTopic ? 'blocked_topic' : (!hasAllowedTopic ? 'irrelevant' : 'ok')\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3040,
+        1216
+      ],
+      "id": "462c3221-c588-4c9a-8d24-b8cfcd9e2493",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "189389d5-3710-41ae-af5b-cd6490706f71",
+              "leftValue": "={{ $json.guardrails.isOffTopic }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2816,
+        1216
+      ],
+      "id": "59d71ee9-1437-41d8-aed3-2d178864db1f",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const reason = items[0].json.guardrails.reason;\n\nlet message = '';\n\nif (reason === 'blocked_topic') {\n  message = `I'm designed to help with software development services and can't assist with that topic.\n\nHowever, I **can** help you with:\n- Web and mobile app development\n- Pricing and project estimates\n- Support and timelines\n- Technical consultations\n\nWhat would you like to know about our services?`;\n} else {\n  message = `I'm not sure I understand your question. I specialize in helping with:\n\n✅ **Services** - Web & mobile development\n✅ **Pricing** - Project estimates and packages  \n✅ **Support** - Hours, contact methods\n✅ **Timelines** - Project duration estimates\n✅ **Technical** - Technologies and platforms\n\nCould you rephrase your question about one of these topics?`;\n}\n\nreturn [{\n  json: {\n    type: 'guardrail',\n    message: message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2592,
+        928
+      ],
+      "id": "688ee4c2-4071-4d7d-a86c-2565340dd576",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2368,
+        928
+      ],
+      "id": "521cba17-856c-4770-97e3-ace70931a790",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://n8n:5678/webhook/predict",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.query }}\",\n  \"conversationId\": \"{{ $json.conversationId }}\",\n  \"redisKey\": \"{{ $json.redisKey }}\",\n  \"isVague\": {{ $json.isVague }},\n  \"wordCount\": {{ $json.wordCount }},\n  \"timestamp\": \"{{ $json.timestamp }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3936,
+        1120
+      ],
+      "id": "48578570-474a-4c00-ba8f-f46a04c1e6bc",
+      "name": "Call PredictIntent"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7db98e78-1133-4b36-9474-6100468f5384",
+              "leftValue": "={{ $json.skip_rag }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3488,
+        1120
+      ],
+      "id": "ed6ed663-6fdd-4caa-979f-01f5c322c462",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -3040,
+        1024
+      ],
+      "id": "5f519140-8832-45cd-bb46-cf16f461502a",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const intentData = items[0].json;\n\nconsole.log('=== Handle Intent Response ===');\nconsole.log('Intent data from PredictIntent:', JSON.stringify(intentData, null, 2));\n\n// Get the original query\nconst originalQuery = intentData.original_text || 'User query';\nconsole.log('Original query:', originalQuery);\n\n// ============================================\n// VAGUENESS DETECTION LOGIC\n// ============================================\nconst query = originalQuery.trim();\nconst wordCount = query.split(' ').filter(w => w.length > 0).length;\n\n// Check for vague starting words\nconst vagueStarters = ['what', 'tell', 'explain', 'help', 'information', 'about', 'hi', 'hello', 'hey'];\nconst startsVague = vagueStarters.some(word => \n  query.toLowerCase().startsWith(word + ' ') || query.toLowerCase() === word\n);\n\n// ============================================\n// CHECK INTENTS THAT SHOULD SKIP RAG\n// ============================================\n\n// List of intents that should use direct response (skip RAG)\nconst skipRAGIntents = [\n  'hello', 'goodbye', 'how_are_you', 'thanks', 'yes', 'no', // Greetings\n  'request_estimate', // Pricing questions\n  'service_inquiry', // Service inquiries\n  'payment_inquiry', // Payment questions\n  'timeline_inquiry', // Timeline questions\n  'support_inquiry', // Support questions\n  'booking_request', // Booking requests\n  'contact_request', // Contact/team requests\n  'portfolio_request', // Portfolio requests\n  'technology_inquiry', // Technology inquiries\n  'process_inquiry' // Process inquiries\n];\n\nconst shouldSkipRAG = skipRAGIntents.includes(intentData.intent) || \n                     intentData.is_greeting === true;\n\nconsole.log('Skip RAG decision:', {\n  intent: intentData.intent,\n  is_greeting: intentData.is_greeting,\n  shouldSkipRAG: shouldSkipRAG,\n  response_hint: intentData.response_message\n});\n\n// ============================================\n// HANDLE DIRECT RESPONSES (SKIP RAG)\n// ============================================\nif (shouldSkipRAG) {\n  console.log('SKIPPING RAG - Using intent response');\n  \n  // Handle specific intents with custom responses\n  let customMessage = intentData.response_message;\n  \n  // ============================================\n  // PAYMENT INQUIRY HANDLING - SIMPLIFIED VERSION\n  // ============================================\n  if (intentData.intent === 'payment_inquiry') {\n    const paymentType = intentData.entities?.payment_query || 'general';\n    \n    // Use your EXACT response for all payment inquiries\n    customMessage = \"We accept credit card, PayPal, and bank transfer.\";\n    \n    // Add additional context based on the query type\n    if (paymentType === 'methods') {\n      customMessage = \"We accept credit card, PayPal, and bank transfer.\";\n    } else if (paymentType === 'schedule') {\n      customMessage = \"We accept credit card, PayPal, and bank transfer.\\n\\nOur standard payment schedule is 50% upfront and 50% upon project completion.\";\n    } else {\n      customMessage = \"We accept credit card, PayPal, and bank transfer.\\n\\nFor more details about our payment options or schedule, please let me know!\";\n    }\n  }\n  \n  // ============================================\n  // CONTACT REQUEST HANDLING\n  // ============================================\n  if (intentData.intent === 'contact_request') {\n    const contactType = intentData.entities?.contact_type || 'general';\n    \n    switch(contactType) {\n      case 'phone':\n        customMessage = `I'd be happy to connect you with our team at TheHexaa! 📞\\n\\n` +\n                       `**For phone support**, please call us at **+91 9876543210** during business hours (Mon-Fri, 9 AM - 6 PM IST).\\n\\n` +\n                       `Alternatively, you can fill out our contact form at https://thehexaa.ai/contact-us and we'll call you back within 24 hours.`;\n        break;\n      case 'email':\n        customMessage = `Here are the best ways to reach TheHexaa via email: 📧\\n\\n` +\n                       `• **General Inquiries**: contact@thehexaa.com\\n` +\n                       `• **Support Requests**: support@thehexaa.com\\n` +\n                       `• **Partnerships**: partners@thehexaa.com\\n` +\n                       `• **Career Opportunities**: careers@thehexaa.com\\n\\n` +\n                       `We typically respond within 1 business day. For urgent matters, please use our contact form.`;\n        break;\n      case 'meeting':\n        customMessage = `Perfect! I can help you schedule a meeting with TheHexaa team. 🗓️\\n\\n` +\n                       `**Schedule a consultation:**\\n` +\n                       `• 🔗 **Book online**: https://thehexaa.ai/contact-us (Select \"Schedule a Call\" option)\\n` +\n                       `• 📧 **Email scheduling**: contact@thehexaa.com with \"Meeting Request\" in subject\\n` +\n                       `• 💬 **Quick chat**: Use the live chat on our website during business hours\\n\\n` +\n                       `Please let me know what type of meeting you're interested in.`;\n        break;\n      default:\n        customMessage = `I'd be delighted to connect you with TheHexaa team! 🚀\\n\\n` +\n                       `**Here are the best ways to reach us:**\\n` +\n                       `• 🌐 **Website Contact Form**: https://thehexaa.ai/contact-us (Recommended for fastest response)\\n` +\n                       `• 📧 **Primary Email**: contact@thehexaa.com\\n` +\n                       `• 📞 **Phone**: +91 9876543210\\n` +\n                       `• 📅 **Book a Consultation**: https://thehexaa.ai/contact-us (Select scheduling option)\\n` +\n                       `• ⏰ **Business Hours**: Monday to Friday, 9:00 AM - 6:00 PM IST\\n\\n` +\n                       `**Which method works best for you?**`;\n    }\n  }\n  \n  // ============================================\n  // PRICING/ESTIMATE HANDLING\n  // ============================================\n  if (intentData.intent === 'request_estimate') {\n    // Use the response from intent detection\n    customMessage = intentData.response_message;\n    \n    // Add payment info to pricing responses\n    if (customMessage && !customMessage.includes('payment') && !customMessage.includes('Payment')) {\n      customMessage += \"\\n\\n**Payment Options**: We accept credit card, PayPal, and bank transfer.\";\n    }\n  }\n  \n  // ============================================\n  // BOOKING REQUEST HANDLING\n  // ============================================\n  if (intentData.intent === 'booking_request') {\n    customMessage = `Excellent! I can help you book a consultation with TheHexaa team. 🗓️\\n\\n` +\n                   `**Schedule your consultation:**\\n` +\n                   `• 🔗 **Book Online**: https://thehexaa.ai/contact-us\\n` +\n                   `• 📧 **Email Scheduling**: contact@thehexaa.com (Subject: \"Consultation Booking\")\\n` +\n                   `• 💬 **Live Assistance**: Chat with us on our website\\n\\n` +\n                   `**Available consultation types:**\\n` +\n                   `• Project Discovery Session (30 mins)\\n` +\n                   `• Technical Consultation (45 mins)\\n` +\n                   `• Proposal Discussion (60 mins)\\n\\n` +\n                   `What type of consultation are you interested in?`;\n  }\n  \n  // ============================================\n  // SUPPORT INQUIRY HANDLING\n  // ============================================\n  if (intentData.intent === 'support_inquiry') {\n    customMessage = `I can help you with TheHexaa support! 🔧\\n\\n` +\n                   `**Support Channels:**\\n` +\n                   `• 📧 **Email Support**: support@thehexaa.com\\n` +\n                   `• 🌐 **Contact Form**: https://thehexaa.ai/contact-us\\n` +\n                   `• 📞 **Phone Support**: +91 9876543210 (Mon-Fri, 9 AM - 6 PM IST)\\n\\n` +\n                   `**Support Hours:**\\n` +\n                   `• Monday - Friday: 9:00 AM - 6:00 PM IST\\n` +\n                   `• Emergency support available for existing clients\\n\\n` +\n                   `What specific support do you need?`;\n  }\n  \n  // ============================================\n  // SERVICE INQUIRY HANDLING\n  // ============================================\n  if (intentData.intent === 'service_inquiry') {\n    const serviceType = intentData.entities?.service_interest || 'general';\n    \n    switch(serviceType) {\n      case 'web_development':\n        customMessage = `I'd be happy to tell you about TheHexaa's web development services! 🌐\\n\\n` +\n                       `**Web Development Services:**\\n` +\n                       `• Custom Website Development\\n` +\n                       `• E-commerce Solutions (Shopify, WooCommerce, Magento)\\n` +\n                       `• Web Applications (React, Vue, Angular)\\n` +\n                       `• CMS Development (WordPress, Drupal, Joomla)\\n` +\n                       `• API Integration and Development\\n` +\n                       `• Website Maintenance and Support\\n\\n` +\n                       `What specific web development needs do you have?`;\n        break;\n      case 'mobile_development':\n        customMessage = `Here are TheHexaa's mobile app development services! 📱\\n\\n` +\n                       `**Mobile App Development:**\\n` +\n                       `• iOS App Development (Swift)\\n` +\n                       `• Android App Development (Kotlin, Java)\\n` +\n                       `• Cross-platform Apps (React Native, Flutter)\\n` +\n                       `• Progressive Web Apps (PWA)\\n` +\n                       `• App UI/UX Design\\n` +\n                       `• App Store Deployment\\n\\n` +\n                       `Are you looking for iOS, Android, or cross-platform development?`;\n        break;\n      default:\n        customMessage = intentData.response_message || `I'd be happy to tell you about TheHexaa services! We specialize in web development, mobile apps, and custom software solutions.`;\n    }\n  }\n  \n  return [{\n    json: {\n      // For direct response\n      type: 'direct_response',\n      message: customMessage || intentData.response_message || `I understand you're asking about ${intentData.intent}. How can I help you with TheHexaa services?`,\n      intent: intentData.intent || 'unknown',\n      confidence: intentData.confidence || 0,\n      entities: intentData.entities || {},\n      original_text: originalQuery,\n      \n      // Additional data for better handling\n      response_hint: intentData.response_message || '',\n      is_greeting: intentData.is_greeting || false,\n      \n      // Flags\n      skip_rag: true,\n      \n      // Keep other data for reference\n      query: originalQuery,\n      wordCount: wordCount,\n      \n      // Company branding\n      company: 'TheHexaa',\n      website: 'https://thehexaa.ai'\n    }\n  }];\n}\n\n// ============================================\n// CONTINUE WITH RAG FLOW FOR OTHER INTENTS\n// ============================================\n\n// Check for specific topics in our knowledge base\nconst specificTopics = ['price', 'cost', 'support', 'timeline', 'payment', 'service', 'website', 'mobile', 'app', 'hour', 'week', 'month', 'pay', 'credit', 'paypal', 'web'];\nconst hasTopic = specificTopics.some(topic => query.toLowerCase().includes(topic));\n\n// Determine if query is vague (only for non-skip RAG intents)\nconst isVague = wordCount < 3 || (startsVague && !hasTopic) || query.length < 5;\n\nconsole.log('Continuing with RAG flow:', {\n  intent: intentData.intent,\n  isVague: isVague,\n  wordCount: wordCount\n});\n\n// ============================================\n// RETURN DATA FOR RAG PROCESSING\n// ============================================\nreturn [{\n  json: {\n    // Query information\n    query: originalQuery,\n    original_text: originalQuery,\n    \n    // From intent service\n    intent: intentData.intent || 'unknown',\n    entities: intentData.entities || {},\n    confidence: intentData.confidence || 0,\n    response_hint: intentData.response_message || '',\n    is_greeting: intentData.is_greeting || false,\n    \n    // Calculated fields\n    isVague: isVague,\n    wordCount: wordCount,\n    \n    // Flags\n    skip_rag: false,\n    \n    // Additional metadata for RAG processing\n    requires_rag: true,\n    intent_category: getIntentCategory(intentData.intent),\n    \n    // Company info for RAG context\n    company_context: 'TheHexaa - Software Development Services',\n    website: 'https://thehexaa.ai'\n  }\n}];\n\n// ============================================\n// HELPER FUNCTIONS\n// ============================================\nfunction getIntentCategory(intent) {\n  const categories = {\n    'general_question': 'information',\n    'comparison_request': 'comparison',\n    'complaint': 'support',\n    'general_inquiry': 'general'\n  };\n  \n  return categories[intent] || 'general';\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3712,
+        1120
+      ],
+      "id": "2dc4e46f-7a97-429e-8467-e0734243d7dd",
+      "name": "Handle Intent Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This node should go between If2 (TRUE) and Respond to Webhook2\nconst data = items[0].json;\n\n// Return the greeting response in the correct format\nreturn [{\n  json: {\n    type: data.type || 'greeting',\n    message: data.message || 'Hello! How can I help you today?',\n    intent: data.intent || 'greeting',\n    confidence: data.confidence || 0.95\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3264,
+        1024
+      ],
+      "id": "ffaaa0c8-0a4f-4224-ae4a-0b30f9ac0657",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $node[\"Process Query\"].json.redisKey }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2144,
+        1504
+      ],
+      "id": "978610b7-9928-428e-87d3-0fdbdee5ed26",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "yXsSNEwc8Lpizqg5",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse conversation history and prepare for RAG\nconst processQueryData = $node[\"Process Query\"].json;\nconst query = processQueryData.query;\nconst conversationId = processQueryData.conversationId;\nconst redisKey = processQueryData.redisKey;\n\n// Get Redis history\nlet conversationHistory = [];\ntry {\n  const redisResult = $input.item.json;\n  \n  // Redis returns data in dynamic property\n  if (redisResult) {\n    // Find the property that contains the actual data\n    const dataKeys = Object.keys(redisResult).filter(k => \n      k !== 'query' && \n      k !== 'conversationId' && \n      k !== 'redisKey' &&\n      k !== 'isVague' &&\n      k !== 'wordCount' &&\n      k !== 'timestamp' &&\n      k !== 'intent' &&\n      k !== 'entities' &&\n      k !== 'skip_rag' &&\n      k !== 'sentiment' &&\n      k !== 'guardrails'\n    );\n    \n    if (dataKeys.length > 0) {\n      const redisValue = redisResult[dataKeys[0]];\n      \n      if (redisValue && typeof redisValue === 'string') {\n        conversationHistory = JSON.parse(redisValue);\n      }\n    }\n  }\n} catch (error) {\n  console.log('No existing history, starting fresh:', error.message);\n  conversationHistory = [];\n}\n\nconsole.log('=== CONVERSATION MEMORY ===');\nconsole.log('Conversation ID:', conversationId);\nconsole.log('History length:', conversationHistory.length);\n\n// Format conversation history for context (last 6 messages = 3 exchanges)\nconst conversationContext = conversationHistory\n  .slice(-6)\n  .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)\n  .join('\\n');\n\n// Add current user message to history\nconst newUserMessage = {\n  role: 'user',\n  content: query,\n  timestamp: new Date().toISOString()\n};\n\nconst updatedHistory = [...conversationHistory, newUserMessage];\n\nreturn {\n  json: {\n    query: query,\n    conversationId: conversationId,\n    redisKey: redisKey,\n    conversationHistory: updatedHistory,\n    conversationContext: conversationContext,\n    hasHistory: conversationHistory.length > 0,\n    historyLength: conversationHistory.length\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1920,
+        1504
+      ],
+      "id": "c2d4340b-e511-42d1-b3c6-8078fab729d6",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare to save conversation with bot response\nconst finalResponse = $input.item.json;\nconst conversationId = $node[\"Code in JavaScript5\"].json.conversationId;\nconst updatedHistory = $node[\"Code in JavaScript5\"].json.conversationHistory;\n\n// Add bot response to history\nconst botMessage = {\n  role: 'assistant',\n  content: finalResponse.rawAnswer || finalResponse.message,\n  timestamp: new Date().toISOString()\n};\n\nconst finalHistory = [...updatedHistory, botMessage];\n\n// Keep only last 20 messages\nconst trimmedHistory = finalHistory.slice(-20);\n\nreturn {\n  json: {\n    ...finalResponse,\n    conversationId: conversationId,\n    redisKey: `chat:${conversationId}`,\n    historyToSave: JSON.stringify(trimmedHistory)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        1504
+      ],
+      "id": "4afef3d7-9375-46e1-91ad-c8d9c34efdf9",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.redisKey }}",
+        "value": "={{ $json.historyToSave }}",
+        "expire": true,
+        "ttl": 86400
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        96,
+        1504
+      ],
+      "id": "3a0fc7fe-2fcf-4315-9360-7b0d5fafd2bf",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "id": "yXsSNEwc8Lpizqg5",
+          "name": "Redis account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Query": {
+      "main": [
+        [
+          {
+            "node": "Call PredictIntent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Vague": {
+      "main": [
+        [
+          {
+            "node": "Clarification Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clarification Response": {
+      "main": [
+        [
+          {
+            "node": "Respond (Clarification)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pinecone Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Pinecone Query": {
+      "main": [
+        [
+          {
+            "node": "Search Pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Pinecone": {
+      "main": [
+        [
+          {
+            "node": "Process Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Groq LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Groq LLM": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analysis": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check if Vague",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call PredictIntent": {
+      "main": [
+        [
+          {
+            "node": "Handle Intent Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sentiment Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Intent Response": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "ca91ef6e-f200-4072-bef0-bf1bae7dceb5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  },
+  "id": "GOXoFAQeYs6v7vvo",
+  "tags": []
+}

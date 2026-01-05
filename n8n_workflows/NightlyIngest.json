@@ -1,0 +1,239 @@
+{
+  "name": "NightlyIngest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 20
+            },
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        -32
+      ],
+      "id": "07133159-b27e-4fc7-835c-bf6908017aeb",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=20",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        192,
+        -32
+      ],
+      "id": "41564e78-3a83-46b6-9ec6-87023bc689a6",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "knowledge-base",
+          "mode": "list",
+          "cachedResultName": "knowledge-base"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        -32
+      ],
+      "id": "4ff88bbf-ff4b-42a8-b4c9-f082c0692505",
+      "name": "Pinecone Vector Store",
+      "credentials": {
+        "pineconeApi": {
+          "id": "vCfG1VShND6OlBpY",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Use global object for storage\nif (!global.kbStatus) {\n  global.kbStatus = {\n    lastUpdate: \"2024-01-01T00:00:00.000Z\",\n    vectorCount: 0\n  };\n}\n\n// Update with current data\nglobal.kbStatus.lastUpdate = new Date().toISOString();\nglobal.kbStatus.vectorCount = items.length || 100;\n\nreturn [{\n  json: {\n    lastUpdate: global.kbStatus.lastUpdate,\n    count: global.kbStatus.vectorCount,\n    status: 'success'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        -32
+      ],
+      "id": "3224ffed-89b0-4279-b2fa-f31d1d3f79fe",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "modelName": "embed-english-light-v3.0"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsCohere",
+      "typeVersion": 1,
+      "position": [
+        528,
+        224
+      ],
+      "id": "2acd76f5-259a-4152-bed1-7cc24f17de23",
+      "name": "Embeddings Cohere",
+      "credentials": {
+        "cohereApi": {
+          "id": "XzqpIFzF6fKdPybc",
+          "name": "CohereApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        224
+      ],
+      "id": "cb216a78-7901-4625-86ec-dffeaf5a6999",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Hacker News JSON API\nconst articles = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Hacker News API returns data in 'hits' array\n  if (data.hits && Array.isArray(data.hits)) {\n    data.hits.forEach((hit, index) => {\n      articles.push({\n        json: {\n          title: hit.title || '',\n          link: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,\n          content: `${hit.title}. ${hit.story_text || ''}`,\n          pubDate: hit.created_at || new Date().toISOString(),\n          source: 'Hacker News',\n          points: hit.points || 0,\n          comments: hit.num_comments || 0,\n          author: hit.author || 'Unknown'\n        }\n      });\n    });\n  }\n}\n\nconsole.log(`Parsed ${articles.length} articles from Hacker News API`);\nreturn articles;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -32
+      ],
+      "id": "b440f5d6-eb61-4dd8-830e-09aa77601a33",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "fromEmail": "toheedhamid9@gmail.com",
+        "toEmail": "toheedhamid9@gmail.com",
+        "subject": "updated",
+        "emailFormat": "text",
+        "text": "=Nightly Ingest Report\n=====================\n\n📊 Statistics:\n• Articles Processed: {{ $json.articlesProcessed }}\n• Chunks Created: {{ $json.chunksCreated }}\n• Vectors Stored: {{ $json.vectorsStored }}\n\n🕐 Completion Time: {{ $json.timestamp }}\n\n✅ Status: Success\n\nThe knowledge base has been updated with latest content from configured sources.\n\n---\nAutomated notification from n8n NightlyIngest workflow",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1136,
+        -32
+      ],
+      "id": "af661b1e-be12-405c-b626-578e756aeeab",
+      "name": "Send email",
+      "webhookId": "29637acb-6836-4e7b-bcfa-b059f508ea3a",
+      "credentials": {
+        "smtp": {
+          "id": "l85Zo5owg1M4w5o1",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Cohere": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Pinecone Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "011ce946-10c8-45cc-ad1e-812ac7abbb30",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  },
+  "id": "24bODI6dCpsPNBta",
+  "tags": []
+}

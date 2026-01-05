@@ -1,0 +1,319 @@
+{
+  "name": "Conversation Summarization",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "summarize",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        -272
+      ],
+      "id": "72800d1d-8287-448d-8c71-42fd55c80a2a",
+      "name": "Webhook",
+      "webhookId": "875b54bb-4f0e-4296-bc48-eaf4de2cb1a9"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1360,
+        -176
+      ],
+      "id": "616d3fd4-13b3-40aa-a545-4f787126aadb",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "Redis - Get Conversation",
+        "key": "={{ $json.redisKey }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        464,
+        -272
+      ],
+      "id": "0715b597-09ec-472c-87d6-54b2fc1aaa42",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "yXsSNEwc8Lpizqg5",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and extract input - Handle different webhook data formats\nconst requestData = $input.item.json;\n\nconsole.log('=== DEBUG: REQUEST STRUCTURE ===');\nconsole.log('Full request data:', JSON.stringify(requestData, null, 2));\n\n// Function to safely extract nested values\nfunction getValue(obj, ...keys) {\n  if (!obj || typeof obj !== 'object') return null;\n  \n  for (const key of keys) {\n    if (key in obj) {\n      const value = obj[key];\n      return value !== undefined && value !== null ? value : null;\n    }\n  }\n  return null;\n}\n\n// IMPORTANT: Webhook data structure in n8n\n// The actual request body is in requestData.body\n// Headers, params, query are separate\n\nconsole.log('=== CHECKING WEBHOOK STRUCTURE ===');\nconsole.log('Has body?', 'body' in requestData);\nconsole.log('Body content:', requestData.body);\nconsole.log('Has params?', 'params' in requestData);\nconsole.log('Params content:', requestData.params);\nconsole.log('Has query?', 'query' in requestData);\nconsole.log('Has webhookUrl?', 'webhookUrl' in requestData);\n\n// Extract conversationId from the CORRECT location\nlet conversationId = null;\nlet summaryType = 'standard';\nlet includeMetadata = true;\n\n// OPTION 1: Direct access from webhook body (most common)\nif (requestData.body) {\n  console.log('Trying to extract from body...');\n  \n  // Body might be a string or already an object\n  let bodyData = requestData.body;\n  \n  // If body is a string, try to parse it as JSON\n  if (typeof bodyData === 'string') {\n    try {\n      bodyData = JSON.parse(bodyData);\n      console.log('Parsed body as JSON');\n    } catch (error) {\n      console.log('Body is not JSON, using as-is');\n    }\n  }\n  \n  // Now try to extract from bodyData\n  if (bodyData && typeof bodyData === 'object') {\n    conversationId = getValue(bodyData, 'conversationId', 'conversation_id');\n    summaryType = getValue(bodyData, 'summaryType', 'summary_type') || 'standard';\n    includeMetadata = getValue(bodyData, 'includeMetadata') !== false;\n    console.log('Extracted from body - conversationId:', conversationId);\n  }\n}\n\n// OPTION 2: Check query parameters (URL query string)\nif (!conversationId && requestData.query) {\n  conversationId = getValue(requestData.query, 'conversationId', 'conversation_id');\n  if (!summaryType || summaryType === 'standard') {\n    summaryType = getValue(requestData.query, 'summaryType', 'summary_type') || 'standard';\n  }\n  console.log('Tried query params - conversationId:', conversationId);\n}\n\n// OPTION 3: Check URL path parameters\nif (!conversationId && requestData.params) {\n  conversationId = getValue(requestData.params, 'conversationId', 'conversation_id');\n  if (!summaryType || summaryType === 'standard') {\n    summaryType = getValue(requestData.params, 'summaryType', 'summary_type') || 'standard';\n  }\n  console.log('Tried URL params - conversationId:', conversationId);\n}\n\n// OPTION 4: Check if the entire requestData itself contains the fields\nif (!conversationId) {\n  conversationId = getValue(requestData, 'conversationId', 'conversation_id');\n  console.log('Tried root object - conversationId:', conversationId);\n}\n\n// OPTION 5: Last resort - search the entire object\nif (!conversationId) {\n  console.log('Searching entire object for conversationId...');\n  const jsonString = JSON.stringify(requestData);\n  const match = jsonString.match(/\"conversationId\":\\s*\"([^\"]+)\"/i) || \n                jsonString.match(/\"conversation_id\":\\s*\"([^\"]+)\"/i);\n  if (match) {\n    conversationId = match[1];\n    console.log('Found via regex search:', conversationId);\n  }\n}\n\n// DEBUG: Show what we found\nconsole.log('=== EXTRACTED VALUES ===');\nconsole.log('Conversation ID:', conversationId);\nconsole.log('Summary Type:', summaryType);\nconsole.log('Include Metadata:', includeMetadata);\n\n// VALIDATION\nif (!conversationId) {\n  // Show the exact structure we received for debugging\n  const errorMessage = 'conversationId is required.\\n\\n' +\n    'Expected format: {\"conversationId\": \"your-id-here\"}\\n\\n' +\n    'Received data structure:\\n' +\n    JSON.stringify(requestData, null, 2) + '\\n\\n' +\n    'Common issues:\\n' +\n    '1. Make sure you\\'re sending JSON in the request body\\n' +\n    '2. The key should be \"conversationId\" (case sensitive)\\n' +\n    '3. Content-Type should be application/json';\n    \n  throw new Error(errorMessage);\n}\n\nif (typeof conversationId !== 'string') {\n  throw new Error('conversationId must be a string, received: ' + typeof conversationId);\n}\n\nif (conversationId.trim().length === 0) {\n  throw new Error('conversationId must be a non-empty string');\n}\n\n// Sanitize conversationId (remove any URL parts if accidentally included)\nif (conversationId.includes('http://') || conversationId.includes('https://')) {\n  console.warn('Warning: conversationId appears to contain a URL, extracting last part');\n  // Extract just the ID part (last segment after /)\n  const parts = conversationId.split('/');\n  conversationId = parts[parts.length - 1];\n  console.log('Sanitized conversationId:', conversationId);\n}\n\n// Create redisKey\nconst redisKey = `chat:${conversationId.trim()}`;\n\nconsole.log('=== FINAL OUTPUT ===');\nconsole.log('conversationId:', conversationId);\nconsole.log('redisKey:', redisKey);\nconsole.log('summaryType:', summaryType);\nconsole.log('includeMetadata:', includeMetadata);\n\nreturn {\n  json: {\n    conversationId: conversationId.trim(),\n    summaryType: summaryType,\n    includeMetadata: includeMetadata,\n    redisKey: redisKey,\n    timestamp: Date.now(),\n    _debug: {\n      receivedStructure: {\n        hasBody: 'body' in requestData,\n        hasParams: 'params' in requestData,\n        hasQuery: 'query' in requestData,\n        bodyType: typeof requestData.body,\n        webhookUrl: requestData.webhookUrl\n      },\n      extracted: {\n        conversationId: conversationId,\n        source: 'See console logs above'\n      }\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        -272
+      ],
+      "id": "115ef0bf-01b0-4447-bf16-434c60596142",
+      "name": "Validate Input"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse conversation from Redis response\nconst redisData = $input.item.json;\n\nconsole.log('=== PARSE CONVERSATION DEBUG ===');\nconsole.log('Redis data keys:', Object.keys(redisData));\nconsole.log('Redis data type:', typeof redisData);\nconsole.log('Full Redis data:', JSON.stringify(redisData, null, 2));\n\n// In n8n Redis nodes, the data is returned directly, not nested\n// The Redis \"Get\" operation returns the value in the property named after the operation name\nconst redisValue = redisData['Redis - Get Conversation'] || redisData.value || redisData;\n\nconsole.log('Redis value:', redisValue);\nconsole.log('Redis value type:', typeof redisValue);\n\n// Get conversation context from previous node\nlet conversationId = redisData.conversationId || 'unknown';\nlet summaryType = redisData.summaryType || 'standard';\n\n// If conversationId is still unknown, try to get it from parent items\nif (conversationId === 'unknown' && $input.all()[0]) {\n  const parentData = $input.all()[0].json;\n  conversationId = parentData.conversationId || conversationId;\n  summaryType = parentData.summaryType || summaryType;\n}\n\nconsole.log('Conversation ID:', conversationId);\nconsole.log('Summary Type:', summaryType);\n\n// Check if we have conversation data\nif (!redisValue) {\n  console.error('No conversation data received from Redis');\n  return {\n    json: {\n      error: true,\n      errorType: 'not_found',\n      message: `No conversation history found for ID: ${conversationId}`,\n      conversationId: conversationId\n    }\n  };\n}\n\ntry {\n  // The Redis value might already be parsed or might be a string\n  let conversationHistory;\n  \n  if (typeof redisValue === 'string') {\n    // Try to parse as JSON\n    conversationHistory = JSON.parse(redisValue);\n  } else if (Array.isArray(redisValue)) {\n    // Already an array\n    conversationHistory = redisValue;\n  } else if (typeof redisValue === 'object') {\n    // Might be an object containing an array\n    conversationHistory = redisValue.conversation || redisValue.history || redisValue.messages || [];\n  } else {\n    throw new Error('Unknown Redis value format: ' + typeof redisValue);\n  }\n  \n  console.log('Parsed history type:', typeof conversationHistory);\n  console.log('Is array?', Array.isArray(conversationHistory));\n  console.log('Array length:', conversationHistory?.length || 0);\n  \n  if (!Array.isArray(conversationHistory)) {\n    console.error('Conversation history is not an array:', conversationHistory);\n    return {\n      json: {\n        error: true,\n        errorType: 'parse_error',\n        message: 'Conversation history is not in the expected format (should be an array)',\n        conversationId: conversationId,\n        rawData: conversationHistory\n      }\n    };\n  }\n  \n  if (conversationHistory.length === 0) {\n    return {\n      json: {\n        error: true,\n        errorType: 'empty_conversation',\n        message: 'Conversation history is empty',\n        conversationId: conversationId\n      }\n    };\n  }\n  \n  console.log('✅ Conversation loaded:', conversationHistory.length, 'messages');\n  console.log('Sample message:', conversationHistory[0]);\n  \n  // Format conversation for summarization\n  const formattedConversation = conversationHistory\n    .map((msg, idx) => {\n      const role = msg.role === 'user' ? 'User' : 'Assistant';\n      const content = msg.content || msg.text || '';\n      const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';\n      \n      return timestamp \n        ? `[${timestamp}] ${role}: ${content}`\n        : `${role}: ${content}`;\n    })\n    .join('\\n');\n  \n  // Calculate conversation metadata\n  const metadata = {\n    totalMessages: conversationHistory.length,\n    userMessages: conversationHistory.filter(m => m.role === 'user').length,\n    assistantMessages: conversationHistory.filter(m => m.role === 'assistant').length,\n    firstMessage: conversationHistory[0]?.timestamp || null,\n    lastMessage: conversationHistory[conversationHistory.length - 1]?.timestamp || null,\n    duration: null\n  };\n  \n  // Calculate duration if timestamps available\n  if (metadata.firstMessage && metadata.lastMessage) {\n    const duration = new Date(metadata.lastMessage) - new Date(metadata.firstMessage);\n    metadata.duration = Math.round(duration / 1000 / 60); // minutes\n  }\n  \n  console.log('Metadata:', JSON.stringify(metadata, null, 2));\n  console.log('Formatted conversation length:', formattedConversation.length, 'characters');\n  \n  return {\n    json: {\n      conversationId: conversationId,\n      conversationText: formattedConversation,\n      conversationHistory: conversationHistory,\n      metadata: metadata,\n      summaryType: summaryType,\n      error: false,\n      _debug: {\n        redisValueType: typeof redisValue,\n        historyType: typeof conversationHistory,\n        sampleMessage: conversationHistory[0]\n      }\n    }\n  };\n  \n} catch (error) {\n  console.error('Error parsing conversation:', error.message);\n  console.error('Error stack:', error.stack);\n  console.error('Raw Redis value that caused error:', typeof redisValue === 'string' ? redisValue.substring(0, 500) + '...' : redisValue);\n  \n  return {\n    json: {\n      error: true,\n      errorType: 'parse_error',\n      message: `Failed to parse conversation: ${error.message}`,\n      conversationId: conversationId,\n      rawRedisValue: typeof redisValue === 'string' ? redisValue.substring(0, 500) + '...' : redisValue\n    }\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -272
+      ],
+      "id": "b1ae688a-f788-40b1-bfa7-69fae05a654c",
+      "name": "Parse Conversation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "60967eaa-534f-4049-85ab-edd2a9a202cf",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        912,
+        -272
+      ],
+      "id": "21828efe-6450-40cd-998b-3597884ea307",
+      "name": "Check Parse Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare prompt based on summary type\nconst input = $input.item.json;\n\nconsole.log('=== PREPARE PROMPT DEBUG ===');\nconsole.log('Input keys:', Object.keys(input));\nconsole.log('Has conversationText?', 'conversationText' in input);\nconsole.log('Has metadata?', 'metadata' in input);\nconsole.log('Has summaryType?', 'summaryType' in input);\n\n// Extract with defaults\nconst conversationText = input.conversationText || '';\nconst summaryType = input.summaryType || 'standard';\nconst metadata = input.metadata || {};\nconst conversationId = input.conversationId || 'unknown';\n\n// Validate required fields\nif (!conversationText || conversationText.trim().length === 0) {\n  console.error('ERROR: conversationText is empty or undefined');\n  console.error('Full input:', JSON.stringify(input, null, 2));\n  \n  return {\n    json: {\n      error: true,\n      errorType: 'missing_conversation_text',\n      message: 'Conversation text is empty or not provided',\n      conversationId: conversationId,\n      summaryType: summaryType\n    }\n  };\n}\n\n// System prompts for different summary types\nconst systemPrompts = {\n  standard: 'You are a helpful assistant that creates clear, concise conversation summaries. Focus on main topics, key information, decisions made, and any action items or next steps.',\n  \n  detailed: 'You are a thorough assistant that creates comprehensive conversation summaries. Include context, main discussion points, detailed information exchanged, all decisions made, action items, and relevant background. Structure your summary with clear sections.',\n  \n  brief: 'You are a concise assistant that creates ultra-brief conversation summaries. Provide only the essential highlights in 2-3 sentences maximum. Focus on outcomes and key decisions.',\n  \n  action_items: 'You are an assistant that extracts action items and next steps from conversations. List all tasks, commitments, and follow-ups mentioned, with any deadlines or responsible parties noted.',\n  \n  executive: 'You are an executive assistant creating a high-level summary for leadership. Focus on business impact, decisions made, risks identified, and strategic implications. Keep it professional and outcome-focused.'\n};\n\n// User prompts for different summary types\nconst userPrompts = {\n  standard: `Summarize this conversation in 4-6 sentences. Include:\\n1. Main topics discussed\\n2. Key information shared\\n3. Any decisions made\\n4. Next steps or action items\\n\\nConversation:\\n${conversationText}`,\n  \n  detailed: `Create a detailed summary of this conversation with the following sections:\\n\\n**Overview:** Brief introduction\\n**Main Topics:** What was discussed\\n**Key Points:** Important information exchanged\\n**Decisions:** Any conclusions or choices made\\n**Action Items:** Next steps or tasks\\n**Context:** Relevant background or concerns\\n\\nConversation:\\n${conversationText}`,\n  \n  brief: `Provide a 2-3 sentence summary of the most important outcomes from this conversation:\\n\\n${conversationText}`,\n  \n  action_items: `Extract all action items, tasks, and next steps from this conversation. Format as a bullet list with clear ownership and deadlines if mentioned:\\n\\n${conversationText}`,\n  \n  executive: `Create an executive summary focused on:\\n- Business impact\\n- Key decisions\\n- Strategic implications\\n- Risks or concerns\\n- Recommended actions\\n\\nKeep it under 150 words.\\n\\nConversation:\\n${conversationText}`\n};\n\n// Get the appropriate prompts\nconst systemPrompt = systemPrompts[summaryType] || systemPrompts.standard;\nconst userPrompt = userPrompts[summaryType] || userPrompts.standard;\n\nconsole.log('=== PROMPT CONFIGURATION ===');\nconsole.log('Using summary type:', summaryType);\nconsole.log('Conversation length:', conversationText.length, 'characters');\nconsole.log('System prompt length:', systemPrompt.length, 'characters');\nconsole.log('User prompt length:', userPrompt.length, 'characters');\n\n// If conversation is very long, truncate it\nlet finalUserPrompt = userPrompt;\nif (conversationText.length > 8000) {\n  console.log('Warning: Conversation is very long, truncating to 8000 chars');\n  const truncatedText = conversationText.substring(0, 8000) + '\\n\\n[Conversation was truncated due to length]';\n  finalUserPrompt = userPrompt.replace(conversationText, truncatedText);\n}\n\nreturn {\n  json: {\n    systemPrompt: systemPrompt,\n    userPrompt: finalUserPrompt,\n    conversationId: conversationId,\n    metadata: metadata,\n    summaryType: summaryType,\n    error: false,\n    _debug: {\n      conversationTextLength: conversationText.length,\n      userPromptLength: finalUserPrompt.length,\n      metadataKeys: Object.keys(metadata)\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -368
+      ],
+      "id": "75875769-50bc-4f2d-b44b-ebbf21ad0ae2",
+      "name": "Prepare AI Prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GROQ_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"model\": \"llama-3.3-70b-versatile\",\n    \"messages\": [\n      {\n        \"role\": \"system\",\n        \"content\": $json.systemPrompt\n      },\n      {\n        \"role\": \"user\",\n        \"content\": $json.userPrompt\n      }\n    ],\n    \"temperature\": 0.3,\n    \"max_tokens\": 500,\n    \"top_p\": 1,\n    \"stream\": false\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1360,
+        -368
+      ],
+      "id": "ccf71b1b-377e-46d3-8c0d-e97fb93e0af4",
+      "name": "Groq API - Generate Summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the final summary response\nconst llmResponse = $input.item.json;\nconst previousNodesData = $input.all();\n\nconsole.log('=== FORMAT SUMMARY DEBUG ===');\nconsole.log('Number of input items:', previousNodesData.length);\nconsole.log('Current node input (llmResponse):', Object.keys(llmResponse));\n\n// Try to find metadata from previous nodes\nlet metadata = null;\nlet conversationId = null;\nlet summaryType = 'standard';\n\n// Search through all input items for metadata\nfor (const item of previousNodesData) {\n  console.log('Checking item index:', previousNodesData.indexOf(item));\n  console.log('Item keys:', Object.keys(item.json));\n  \n  if (item.json.metadata) {\n    metadata = item.json.metadata;\n    console.log('Found metadata in item');\n  }\n  if (item.json.conversationId && !conversationId) {\n    conversationId = item.json.conversationId;\n    console.log('Found conversationId:', conversationId);\n  }\n  if (item.json.summaryType && summaryType === 'standard') {\n    summaryType = item.json.summaryType;\n    console.log('Found summaryType:', summaryType);\n  }\n}\n\n// If metadata is still not found, create default\nif (!metadata) {\n  console.warn('Metadata not found in any input items, creating default');\n  metadata = {\n    totalMessages: 0,\n    userMessages: 0,\n    assistantMessages: 0,\n    duration: null\n  };\n}\n\n// If conversationId is not found, try to get from llmResponse or use default\nif (!conversationId) {\n  conversationId = llmResponse.conversationId || 'unknown';\n  console.log('Using conversationId from llmResponse or default:', conversationId);\n}\n\nconsole.log('Final values:');\nconsole.log('Metadata:', metadata);\nconsole.log('Conversation ID:', conversationId);\nconsole.log('Summary Type:', summaryType);\n\n// Check for API errors\nif (llmResponse.error) {\n  console.error('Groq API error:', llmResponse.error);\n  return {\n    json: {\n      type: 'summary',\n      status: 'error',\n      message: `AI service error: ${llmResponse.error.message || 'Unknown error'}`,\n      conversationId: conversationId\n    }\n  };\n}\n\n// Validate response structure\nif (!llmResponse.choices || !llmResponse.choices[0] || !llmResponse.choices[0].message) {\n  console.error('Invalid Groq response structure:', llmResponse);\n  return {\n    json: {\n      type: 'summary',\n      status: 'error',\n      message: 'Invalid response from AI service',\n      conversationId: conversationId,\n      rawResponse: llmResponse\n    }\n  };\n}\n\nconst summary = llmResponse.choices[0].message.content.trim();\nconst finishReason = llmResponse.choices[0].finish_reason;\n\nconsole.log('✅ Summary generated successfully');\nconsole.log('Finish reason:', finishReason);\nconsole.log('Summary length:', summary.length, 'characters');\n\n// Create formatted message - with safe metadata access\nconst durationText = metadata && metadata.duration \n  ? `${metadata.duration} minutes`\n  : 'Unknown duration';\n\nconst totalMessages = metadata && metadata.totalMessages ? metadata.totalMessages : 0;\nconst userMessages = metadata && metadata.userMessages ? metadata.userMessages : 0;\nconst assistantMessages = metadata && metadata.assistantMessages ? metadata.assistantMessages : 0;\n\nconst formattedMessage = `📊 **Conversation Summary**\\n\\n` +\n  `**Type:** ${summaryType.charAt(0).toUpperCase() + summaryType.slice(1)}\\n` +\n  `**Messages:** ${totalMessages} (${userMessages} user, ${assistantMessages} assistant)\\n` +\n  `**Duration:** ${durationText}\\n\\n` +\n  `---\\n\\n` +\n  `${summary}\\n\\n` +\n  `---\\n\\n` +\n  `*Generated at ${new Date().toLocaleString()}*`;\n\nreturn {\n  json: {\n    type: 'summary',\n    status: 'success',\n    message: formattedMessage,\n    summary: summary,\n    conversationId: conversationId,\n    metadata: {\n      ...metadata,\n      summaryType: summaryType,\n      generatedAt: new Date().toISOString(),\n      model: llmResponse.model || 'unknown',\n      finishReason: finishReason || 'unknown'\n    },\n    usage: {\n      promptTokens: llmResponse.usage?.prompt_tokens || 0,\n      completionTokens: llmResponse.usage?.completion_tokens || 0,\n      totalTokens: llmResponse.usage?.total_tokens || 0,\n      estimatedCost: (llmResponse.usage?.total_tokens || 0) * 0.0000001 // Rough estimate\n    },\n    rawResponse: {\n      model: llmResponse.model,\n      finishReason: finishReason,\n      hasChoices: !!llmResponse.choices,\n      choiceCount: llmResponse.choices ? llmResponse.choices.length : 0\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        -368
+      ],
+      "id": "f51963a7-4e4c-40f5-b9d1-f316c273b5dd",
+      "name": "Format Summary Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle errors from earlier stages\nconst errorData = $input.item.json;\nconst errorType = errorData.errorType || 'unknown';\nconst errorMessage = errorData.message || 'An unknown error occurred';\nconst conversationId = errorData.conversationId || 'unknown';\n\nconsole.error('=== ERROR HANDLER ===');\nconsole.error('Type:', errorType);\nconsole.error('Message:', errorMessage);\nconsole.error('Conversation ID:', conversationId);\n\nlet userMessage = '';\n\nswitch (errorType) {\n  case 'not_found':\n    userMessage = `❌ **Conversation Not Found**\\n\\n` +\n      `We couldn't find a conversation with ID: **${conversationId}**\\n\\n` +\n      `**Possible reasons:**\\n` +\n      `• The conversation ID is incorrect\\n` +\n      `• The conversation has expired (older than 1 hour)\\n` +\n      `• The conversation hasn't started yet\\n\\n` +\n      `Please check the conversation ID and try again.`;\n    break;\n    \n  case 'empty_conversation':\n    userMessage = `❌ **Empty Conversation**\\n\\n` +\n      `The conversation exists but has no messages to summarize.\\n\\n` +\n      `Start a conversation first, then request a summary.`;\n    break;\n    \n  case 'parse_error':\n    userMessage = `❌ **Data Error**\\n\\n` +\n      `We encountered an error parsing the conversation data.\\n\\n` +\n      `Error: ${errorMessage}\\n\\n` +\n      `This may be due to corrupted data. Please contact support.`;\n    break;\n    \n  default:\n    userMessage = `❌ **Summarization Failed**\\n\\n` +\n      `We couldn't generate a summary for this conversation.\\n\\n` +\n      `Error: ${errorMessage}\\n\\n` +\n      `Please try again or contact support if the issue persists.`;\n}\n\nreturn {\n  json: {\n    type: 'summary',\n    status: 'error',\n    message: userMessage,\n    conversationId: conversationId,\n    errorDetails: {\n      type: errorType,\n      message: errorMessage,\n      timestamp: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -176
+      ],
+      "id": "74faa9d5-59d3-4b4a-9ab2-19415470d87b",
+      "name": "Handle Error"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1824,
+        -368
+      ],
+      "id": "327d25a0-fc94-4c37-90d4-52a30df67e7e",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Parse Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Conversation": {
+      "main": [
+        [
+          {
+            "node": "Check Parse Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Parse Success": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Groq API - Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq API - Generate Summary": {
+      "main": [
+        [
+          {
+            "node": "Format Summary Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Summary Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f54e9923-a23a-451e-bc0c-2875f42f3bb5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8168d89a8ce98e7cbc6e660103a8a39adecf0664c1a6488687ea9c9107d1873b"
+  },
+  "id": "3jnjNQBYGsTb1exc",
+  "tags": []
+}
