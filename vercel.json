@@ -28,7 +28,7 @@
     "REDIS_PASSWORD": "@redis_password",
     "EMBEDDING_API_URL": "@embedding_api_url"
   },
-  "headers": [
+"headers": [
     {
       "source": "/(.*)",
       "headers": [
