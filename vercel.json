@@ -23,11 +23,6 @@
       "destination": "/react-chat-app/index.html"
     }
   ],
-  "env": {
-    "REDIS_URL": "@redis_url",
-    "REDIS_PASSWORD": "@redis_password",
-    "EMBEDDING_API_URL": "@embedding_api_url"
-  },
   "headers": [
     {
       "source": "/(.*)",
