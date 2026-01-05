@@ -1,0 +1,16 @@
+{
+  "name": "hexaa-n8n",
+  "version": "1.0.0",
+  "description": "n8n workflow automation platform",
+  "private": true,
+  "scripts": {
+    "start": "n8n start",
+    "install-global": "npm install -g n8n"
+  },
+  "dependencies": {
+    "n8n": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

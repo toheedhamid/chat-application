@@ -1,0 +1,17 @@
+# Ignore files for Railway deployment
+node_modules/
+react-chat-app/
+api/
+.git/
+.gitignore
+*.md
+docs/
+n8n_data/
+redis_data/
+chroma_data/
+docker-compose*.yml
+Dockerfile*
+*.log
+.env.local
+.env.development
+.env.test

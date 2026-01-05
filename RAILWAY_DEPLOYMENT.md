@@ -1,0 +1,192 @@
+# Railway Deployment Guide for n8n
+
+## Overview
+This guide helps you deploy n8n workflows to Railway while keeping your Vercel deployment for the frontend and API.
+
+## Architecture
+- **Railway**: Hosts n8n workflows
+- **Vercel**: Hosts React frontend + API serverless functions
+
+## Step 1: Railway Project Setup
+
+### 1.1 Create Railway Project
+1. Go to [Railway](https://railway.app/)
+2. Click "New Project"
+3. Select "Deploy from GitHub repo"
+4. Choose your repository: `toheedhamid/hexaa-chatbot`
+
+### 1.2 Configure Build Settings
+Railway will automatically detect:
+- **Builder**: NIXPACKS (configured in `railway.json`)
+- **Start Command**: `npx n8n start` (from `railway.json`)
+
+## Step 2: Environment Variables
+
+Go to Railway Dashboard → Your Project → Variables tab and add:
+
+### Required n8n Variables:
+```bash
+# Basic Auth (Recommended for production)
+N8N_BASIC_AUTH_ACTIVE=true
+N8N_BASIC_AUTH_USER=your_username
+N8N_BASIC_AUTH_PASSWORD=your_secure_password
+
+# Server Configuration
+N8N_HOST=0.0.0.0
+N8N_PORT=5678
+N8N_PROTOCOL=https
+
+# Webhook URL (Get this after deployment)
+WEBHOOK_URL=https://your-railway-app.railway.app/
+
+# Database (Optional - uses SQLite by default)
+# For production, consider PostgreSQL:
+# DB_TYPE=postgresdb
+# DB_POSTGRESDB_HOST=your-postgres-host
+# DB_POSTGRESDB_PORT=5432
+# DB_POSTGRESDB_DATABASE=n8n
+# DB_POSTGRESDB_USER=your-user
+# DB_POSTGRESDB_PASSWORD=your-password
+```
+
+### Redis Connection (if using external Redis):
+```bash
+REDIS_URL=redis://default:password@host:port
+REDIS_PASSWORD=your-redis-password
+```
+
+### Optional n8n Variables:
+```bash
+# Encryption (Required for production)
+N8N_ENCRYPTION_KEY=your-32-character-encryption-key
+
+# Timezone
+TZ=UTC
+
+# Execution Settings
+EXECUTIONS_PROCESS=main
+EXECUTIONS_DATA_SAVE_ON_ERROR=all
+EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+EXECUTIONS_DATA_MAX_AGE=336
+
+# Logging
+N8N_LOG_LEVEL=info
+N8N_LOG_OUTPUT=console
+```
+
+## Step 3: Deploy
+
+### 3.1 Automatic Deployment
+Railway will automatically deploy when you push to your main branch.
+
+### 3.2 Manual Deployment
+1. Railway Dashboard → Your Project
+2. Click "Deploy" or trigger a new deployment
+
+## Step 4: Get Your Webhook URL
+
+After deployment:
+1. Railway Dashboard → Your Project → Settings
+2. Copy your Railway domain (e.g., `your-app.railway.app`)
+3. Your webhook URL will be: `https://your-app.railway.app/webhook/`
+4. Update `WEBHOOK_URL` environment variable with this URL
+
+## Step 5: Access n8n Interface
+
+1. Go to your Railway app URL: `https://your-app.railway.app`
+2. You'll be prompted for basic auth (if enabled)
+3. Login with your credentials
+4. Import your workflows from `n8n_workflows/` folder
+
+## Step 6: Update Frontend to Use Railway Webhooks
+
+Update your React app to use Railway webhook URLs:
+
+### Option A: Environment Variable
+In Vercel Dashboard → Environment Variables:
+```
+REACT_APP_N8N_BASE_URL=https://your-railway-app.railway.app
+```
+
+### Option B: Update Frontend Code
+Update `react-chat-app/src/ChatInput.js`:
+```javascript
+const API_BASE_URL = process.env.REACT_APP_N8N_BASE_URL || 
+                     process.env.REACT_APP_API_BASE_URL || 
+                     '/api';
+```
+
+## Step 7: Import Workflows
+
+1. Access n8n interface at your Railway URL
+2. Go to Workflows → Import from File
+3. Import workflows from `n8n_workflows/`:
+   - `chat-memory-workflow.json`
+   - `AnswerQuery2.json`
+   - `EstimateBallpark.json`
+   - etc.
+
+## Step 8: Configure Workflow Webhooks
+
+After importing workflows:
+1. Open each workflow in n8n
+2. Check the Webhook node settings
+3. The webhook URL should automatically use your Railway domain
+4. Activate the workflows
+
+## Troubleshooting
+
+### Issue: n8n won't start
+**Solution**: 
+- Check Railway logs for errors
+- Verify Node.js version (should be 18+)
+- Check environment variables are set correctly
+
+### Issue: Can't access n8n interface
+**Solution**:
+- Verify `N8N_PROTOCOL=https` is set
+- Check Railway domain is correct
+- Verify basic auth credentials
+
+### Issue: Webhooks not working
+**Solution**:
+- Verify `WEBHOOK_URL` environment variable is set correctly
+- Check workflow is activated in n8n
+- Verify webhook path matches your workflow configuration
+
+### Issue: Database errors
+**Solution**:
+- For production, use PostgreSQL instead of SQLite
+- Set up Railway PostgreSQL addon
+- Configure database environment variables
+
+## Production Recommendations
+
+1. **Use PostgreSQL**: Add Railway PostgreSQL addon for production
+2. **Enable Encryption**: Set `N8N_ENCRYPTION_KEY` (32 characters)
+3. **Enable Basic Auth**: Always use authentication in production
+4. **Set up Monitoring**: Use Railway's built-in monitoring
+5. **Backup Workflows**: Export workflows regularly
+6. **Use Environment Variables**: Never hardcode secrets
+
+## Cost Optimization
+
+- Railway free tier: $5 credit/month
+- n8n is lightweight, should run on free tier
+- Monitor usage in Railway dashboard
+- Consider Railway Pro for production workloads
+
+## Next Steps
+
+1. ✅ Deploy to Railway
+2. ✅ Set environment variables
+3. ✅ Import workflows
+4. ✅ Update frontend to use Railway webhooks
+5. ✅ Test all workflows
+6. ✅ Monitor Railway logs
+
+## Support
+
+- Railway Docs: https://docs.railway.app/
+- n8n Docs: https://docs.n8n.io/
+- Railway Discord: https://discord.gg/railway
