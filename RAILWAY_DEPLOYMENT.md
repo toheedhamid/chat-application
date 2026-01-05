@@ -24,20 +24,28 @@ Railway will automatically detect:
 
 Go to Railway Dashboard → Your Project → Variables tab and add:
 
+**📋 See `RAILWAY_ENV_VARIABLES.md` for complete environment variables documentation.**
+
+**Quick Reference:**
+
 ### Required n8n Variables:
 ```bash
-# Basic Auth (Recommended for production)
+# Basic Auth (REQUIRED for production)
 N8N_BASIC_AUTH_ACTIVE=true
-N8N_BASIC_AUTH_USER=your_username
+N8N_BASIC_AUTH_USER=admin
 N8N_BASIC_AUTH_PASSWORD=your_secure_password
 
 # Server Configuration
 N8N_HOST=0.0.0.0
 N8N_PORT=5678
 N8N_PROTOCOL=https
+N8N_EDITOR_BASE_URL=https://your-app-name.up.railway.app/
 
-# Webhook URL (Get this after deployment)
-WEBHOOK_URL=https://your-railway-app.railway.app/
+# Webhook URL (Use Railway template variable)
+WEBHOOK_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}/
+
+# Encryption Key (REQUIRED - Generate a random 32-character string)
+N8N_ENCRYPTION_KEY=your-random-32-character-encryption-key
 
 # Database (Optional - uses SQLite by default)
 # For production, consider PostgreSQL:
@@ -49,10 +57,32 @@ WEBHOOK_URL=https://your-railway-app.railway.app/
 # DB_POSTGRESDB_PASSWORD=your-password
 ```
 
-### Redis Connection (if using external Redis):
+### Redis Configuration (for Queue):
 ```bash
-REDIS_URL=redis://default:password@host:port
-REDIS_PASSWORD=your-redis-password
+QUEUE_BULL_REDIS_HOST=your-redis-host.railway.app
+QUEUE_BULL_REDIS_PORT=6379
+QUEUE_BULL_REDIS_DB=0
+QUEUE_BULL_REDIS_USER=default
+QUEUE_BULL_REDIS_PASSWORD=your-redis-password
+
+# Queue Mode
+EXECUTIONS_MODE=queue
+QUEUE_HEALTH_CHECK_ACTIVE=true
+```
+
+### OpenAI API (Optional):
+```bash
+N8N_OPENAI_API_KEY=sk-proj-your-openai-api-key
+```
+
+### SMTP Email Configuration (Optional - Gmail):
+```bash
+N8N_SMTP_HOST=smtp.gmail.com
+N8N_SMTP_PORT=587
+N8N_SMTP_USER=your-email@gmail.com
+N8N_SMTP_PASS=your-app-specific-password
+N8N_SMTP_SENDER=your-email@gmail.com
+N8N_SMTP_SSL=false
 ```
 
 ### Optional n8n Variables:
