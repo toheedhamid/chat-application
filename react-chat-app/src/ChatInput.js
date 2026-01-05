@@ -4,8 +4,13 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
 
-  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
-  const CHAT_API_URL = WEBHOOK_URL || `${API_BASE_URL}/chat-memory`;
+  // Railway n8n backend URL (set in Vercel environment variables)
+  const N8N_BASE_URL = process.env.REACT_APP_N8N_BASE_URL || process.env.NEXT_PUBLIC_N8N_BASE_URL;
+  
+  // Use Railway n8n webhook if available, otherwise fallback to Vercel API
+  const CHAT_API_URL = WEBHOOK_URL || 
+    (N8N_BASE_URL ? `${N8N_BASE_URL}/webhook/answer` : null) ||
+    (process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api') + '/chat-memory';
 
   useEffect(() => {
     if (isDrawerOpen && inputRef.current) {
@@ -25,15 +30,19 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
     try {
       console.log('Sending message:', userMessage);
 
-      // Simplified API call to Vercel serverless function
+      // Determine request format based on endpoint
+      const isN8nWebhook = CHAT_API_URL.includes('/webhook/');
+      
+      // n8n AnswerQuery2 expects: { text, conversationId }
+      // Vercel API expects: { message, conversationId, action }
+      const requestBody = isN8nWebhook
+        ? { text: userMessage, conversationId: conversationId || 'default' }
+        : { message: userMessage, conversationId: conversationId || 'default', action: 'chat' };
+
       const response = await fetch(CHAT_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          conversationId: conversationId || 'default',
-          action: 'chat'
-        })
+        body: JSON.stringify(requestBody)
       });
 
       console.log('Chat API response status:', response.status);
@@ -44,10 +53,15 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
       const data = await response.json();
       console.log('Chat API response data:', data);
 
-      // Handle response from Vercel API
-      onSendMessage(data.message || 'I received your message.', 'bot', {
+      // Handle response from n8n or Vercel API
+      // n8n AnswerQuery2 returns: { answer, conversationId, ... }
+      // Vercel API returns: { message, historyCount, ... }
+      const botMessage = data.answer || data.message || 'I received your message.';
+      const historyCount = data.historyCount || 0;
+      
+      onSendMessage(botMessage, 'bot', {
         type: 'chat',
-        historyCount: data.historyCount || 0
+        historyCount: historyCount
       });
     } catch (error) {
       console.error('Error:', error);

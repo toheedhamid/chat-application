@@ -4,14 +4,15 @@ import ChatInput from './ChatInput';
 
 function ChatDrawer({ isOpen, onClose, messages, onSendMessage, onFeedback, onClearChat, isLoading, setLoading, conversationId }) {
   
-  // Configure these URLs to match your setup
+  // Railway n8n backend URL (set in Vercel environment variables)
+  const N8N_BASE_URL = process.env.REACT_APP_N8N_BASE_URL || process.env.NEXT_PUBLIC_N8N_BASE_URL;
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
   const CALENDLY_LINK = 'https://calendly.com/your-link'; // Your actual Calendly link
   
-  // API endpoints for Vercel serverless functions
+  // API endpoints - use Railway n8n if available, otherwise fallback to Vercel API
   const API_ENDPOINTS = {
-    chat: `${API_BASE_URL}/chat-memory`,
-    status: `${API_BASE_URL}/status`
+    chat: N8N_BASE_URL ? `${N8N_BASE_URL}/webhook/answer` : `${API_BASE_URL}/chat-memory`,
+    status: `${API_BASE_URL}/status` // Status endpoint stays on Vercel
   };
 
   // State for knowledge base last update timestamp
