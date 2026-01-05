@@ -28,11 +28,6 @@
     "REDIS_PASSWORD": "@redis_password",
     "EMBEDDING_API_URL": "@embedding_api_url"
   },
-  "functions": {
-    "api/**/*.js": {
-      "maxDuration": 30
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
