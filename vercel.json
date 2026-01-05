@@ -22,8 +22,16 @@
       "dest": "/api/$1"
     },
     {
+      "src": "/static/(.*)",
+      "dest": "/react-chat-app/build/static/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|ico|png|jpg|jpeg|svg|json|woff|woff2|ttf|eot|map))",
+      "dest": "/react-chat-app/build/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/react-chat-app/$1"
+      "dest": "/react-chat-app/build/index.html"
     }
   ]
 }
