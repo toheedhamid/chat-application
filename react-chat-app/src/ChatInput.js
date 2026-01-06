@@ -24,6 +24,8 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
     CHAT_API_URL = WEBHOOK_URL;
   } else if (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost')) {
     CHAT_API_URL = `${N8N_BASE_URL}/webhook/answer`;
+  } else if (N8N_BASE_URL && N8N_BASE_URL.includes('localhost')) {
+    CHAT_API_URL = `${N8N_BASE_URL}/webhook-test/answer`;
   } else {
     CHAT_API_URL = `${LOCAL_N8N_URL}/webhook-test/answer`;
   }

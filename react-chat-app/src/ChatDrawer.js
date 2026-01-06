@@ -25,6 +25,8 @@ function ChatDrawer({ isOpen, onClose, messages, onSendMessage, onFeedback, onCl
   
   if (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost')) {
     chatEndpoint = `${N8N_BASE_URL}/webhook/answer`;
+  } else if (N8N_BASE_URL && N8N_BASE_URL.includes('localhost')) {
+    chatEndpoint = `${N8N_BASE_URL}/webhook-test/answer`;
   } else {
     chatEndpoint = `${LOCAL_N8N_URL}/webhook-test/answer`;
   }
