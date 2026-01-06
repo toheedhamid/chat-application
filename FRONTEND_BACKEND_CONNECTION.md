@@ -103,7 +103,7 @@ N8N_BASIC_AUTH_ACTIVE=true
 N8N_BASIC_AUTH_USER=admin
 N8N_BASIC_AUTH_PASSWORD=your_password
 N8N_PROTOCOL=https
-WEBHOOK_URL=https://your-railway-domain.railway.app/
+WEBHOOK_URL=https://n8n-main-instance-production-0ed4.up.railway.app/
 ```
 
 ## Troubleshooting
@@ -166,7 +166,7 @@ Should show your Railway URL.
 ### Test 2: Test Webhook Directly
 
 ```bash
-curl -X POST https://your-railway-domain.railway.app/webhook/answer \
+curl -X POST https://n8n-main-instance-production-0ed4.up.railway.app/workflow/baDvL8rKKuvg04bvQfm1m \
   -H "Content-Type: application/json" \
   -d '{"text":"Hello","conversationId":"test123"}'
 ```

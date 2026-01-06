@@ -36,12 +36,12 @@ Key variables:
 - `N8N_BASIC_AUTH_ACTIVE=true`
 - `N8N_BASIC_AUTH_USER=username`
 - `N8N_BASIC_AUTH_PASSWORD=password`
-- `WEBHOOK_URL=https://your-railway-app.railway.app/`
+- `WEBHOOK_URL=https://n8n-main-instance-production-0ed4.up.railway.app/`
 
 ### Vercel (Frontend + API)
 - `REDIS_URL=redis://...`
 - `REDIS_PASSWORD=...`
-- `REACT_APP_N8N_BASE_URL=https://your-railway-app.railway.app` (optional)
+- `REACT_APP_N8N_BASE_URL=https://n8n-main-instance-production-0ed4.up.railway.app` (optional)
 
 ## File Structure
 

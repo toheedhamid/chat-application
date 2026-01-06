@@ -32,10 +32,10 @@ N8N_LOG_LEVEL=info
 N8N_PROTOCOL=https
 N8N_HOST=0.0.0.0
 N8N_PORT=5678
-N8N_EDITOR_BASE_URL=https://your-app-name.up.railway.app/
+N8N_EDITOR_BASE_URL=https://n8n-main-instance-production-0ed4.up.railway.app/
 
 # Webhook URL (Railway will provide the domain)
-WEBHOOK_URL=https://your-app-name.up.railway.app/
+WEBHOOK_URL=https://n8n-main-instance-production-0ed4.up.railway.app/
 
 # Basic Authentication (REQUIRED for production)
 N8N_BASIC_AUTH_ACTIVE=true

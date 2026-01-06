@@ -31,7 +31,7 @@ Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment V
 
 ✅ **Add:**
 ```
-REACT_APP_N8N_BASE_URL=https://your-railway-domain.railway.app
+REACT_APP_N8N_BASE_URL=https://n8n-main-instance-production-0ed4.up.railway.app
 ```
 
 **Important:**
@@ -47,7 +47,7 @@ Here's what your Vercel environment variables should look like:
 
 ```bash
 # Railway n8n Backend (REQUIRED for AnswerQuery2)
-REACT_APP_N8N_BASE_URL=https://your-railway-domain.railway.app
+REACT_APP_N8N_BASE_URL=https://n8n-main-instance-production-0ed4.up.railway.app
 
 # Vercel API Fallback (Optional - only if using Vercel API as backup)
 REACT_APP_API_BASE_URL=/api
