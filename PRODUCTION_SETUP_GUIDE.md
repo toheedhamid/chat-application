@@ -13,7 +13,7 @@ Frontend (Vercel) → Railway n8n → AnswerQuery2 Workflow → Redis → Respon
 **Production URLs:**
 - **Frontend**: https://hexaa-chatbot.vercel.app/
 - **Backend**: https://n8n-main-instance-production-0ed4.up.railway.app/
-- **Webhook**: https://n8n-main-instance-production-0ed4.up.railway.app/webhook-test/answer
+- **Webhook**: https://n8n-main-instance-production-0ed4.up.railway.app/webhook/answer
 
 ---
 
@@ -34,7 +34,7 @@ Frontend (Vercel) → Railway n8n → AnswerQuery2 Workflow → Redis → Respon
 3. Ensure it's **ACTIVATED** (toggle switch should be ON)
 4. Click on **AnswerQuery2** to open it
 5. Check the **Webhook** node:
-   - Path should be: `answer`
+   - Path should be: `answer` (creates `/webhook/answer` endpoint)
    - Method: `POST`
    - Status: **Active** (green dot)
 
@@ -108,7 +108,7 @@ REACT_APP_N8N_BASE_URL=https://n8n-main-instance-production-0ed4.up.railway.app
 **Important:**
 - ✅ Select **Production**, **Preview**, and **Development** environments
 - ✅ Click **Save**
-- ❌ **DO NOT** include `/webhook-test/answer` in the URL (just the base URL)
+- ❌ **DO NOT** include `/webhook/answer` in the URL (just the base URL)
 
 ### 2.2 Remove Old/Incorrect Variables
 
@@ -140,7 +140,7 @@ After setting the environment variable:
 Test your Railway backend using curl or Postman:
 
 ```bash
-curl -X POST https://n8n-main-instance-production-0ed4.up.railway.app/webhook-test/answer \
+curl -X POST https://n8n-main-instance-production-0ed4.up.railway.app/webhook/answer \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, how are you?",
@@ -164,7 +164,7 @@ curl -X POST https://n8n-main-instance-production-0ed4.up.railway.app/webhook-te
 3. Go to **Console** tab
 4. Send a test message: "Hello"
 5. Check console logs:
-   - ✅ Should show: `Using API URL: https://n8n-main-instance-production-0ed4.up.railway.app/webhook-test/answer`
+   - ✅ Should show: `Using API URL: https://n8n-main-instance-production-0ed4.up.railway.app/webhook/answer`
    - ✅ Should show: `Chat API response data: {...}`
    - ❌ Should **NOT** show CORS errors
    - ❌ Should **NOT** show `localhost` URLs
@@ -173,10 +173,10 @@ curl -X POST https://n8n-main-instance-production-0ed4.up.railway.app/webhook-te
 
 1. In DevTools, go to **Network** tab
 2. Send a message
-3. Look for request to `/webhook-test/answer`
+3. Look for request to `/webhook/answer`
 4. Check:
    - ✅ **Status**: 200 OK
-   - ✅ **Request URL**: `https://n8n-main-instance-production-0ed4.up.railway.app/webhook-test/answer`
+   - ✅ **Request URL**: `https://n8n-main-instance-production-0ed4.up.railway.app/webhook/answer`
    - ✅ **Request Payload**: `{"text":"Hello","conversationId":"conv_..."}`
    - ✅ **Response**: Contains `answer` field
 
@@ -220,7 +220,7 @@ has been blocked by CORS policy
 
 **Solution:**
 1. Verify AnswerQuery2 workflow is **ACTIVATED** in n8n
-2. Check webhook path is `/webhook-test/answer` (not `/webhook/answer`)
+2. Check webhook path is `/webhook/answer` (not `/webhook-test/answer`)
 3. Verify Railway domain is correct: `n8n-main-instance-production-0ed4.up.railway.app`
 4. Check n8n logs in Railway Dashboard → Deployments → View Logs
 
@@ -272,7 +272,7 @@ Use this checklist to verify everything is working:
 ### Railway (Backend)
 - [ ] n8n service is running and healthy
 - [ ] AnswerQuery2 workflow is imported and activated
-- [ ] Webhook path is `/webhook-test/answer`
+- [ ] Webhook path is `/webhook/answer`
 - [ ] All required environment variables are set
 - [ ] Can access n8n UI at Railway URL
 - [ ] Direct webhook test returns response
@@ -298,7 +298,7 @@ Use this checklist to verify everything is working:
 ### Frontend Code Changes
 
 The frontend code has been updated to:
-- ✅ Use `/webhook-test/answer` path for production
+- ✅ Use `/webhook/answer` path for production
 - ✅ Send correct request format: `{ text, conversationId }`
 - ✅ Handle responses from n8n: `{ answer, conversationId, ... }`
 - ✅ Filter out `localhost` URLs in production
