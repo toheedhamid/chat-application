@@ -175,18 +175,28 @@ function ChatInterface({ isDrawerOpen = true }) {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <h3 style={styles.title}>Chat Assistant</h3>
-          {messages.length > 0 && (
-            <small style={styles.messageCount}>
-              {messages.length} message{messages.length !== 1 ? 's' : ''}
-            </small>
-          )}
-        </div>
-        <div style={styles.headerRight}>
+        <div style={styles.headerContent}>
+          <div style={styles.headerLeft}>
+            <div style={styles.iconWrapper}>
+              <svg style={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style={styles.title}>AI Assistant</h3>
+              {messages.length > 0 && (
+                <small style={styles.messageCount}>
+                  {messages.length} message{messages.length !== 1 ? 's' : ''}
+                </small>
+              )}
+            </div>
+          </div>
           {messages.length > 0 && (
             <button onClick={clearChat} style={styles.clearButton}>
-              Clear Chat
+              <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Clear
             </button>
           )}
         </div>
@@ -196,40 +206,60 @@ function ChatInterface({ isDrawerOpen = true }) {
       <div style={styles.messagesArea}>
         {messages.length === 0 ? (
           <div style={styles.emptyState}>
-            <div style={styles.welcomeIcon}>💬</div>
-            <p style={styles.welcomeText}>Start a conversation</p>
-            <p style={styles.instructionText}>Type a message below to begin chatting</p>
-            <p style={styles.exampleText}>Try asking: "What services do you offer?" or "Tell me about pricing"</p>
+            <div style={styles.emptyIconWrapper}>
+              <svg style={styles.emptyIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M8 10h.01M12 10h.01M16 10h.01"/>
+              </svg>
+            </div>
+            <h4 style={styles.emptyTitle}>Start a conversation</h4>
+            <p style={styles.emptyDescription}>
+              Ask me anything! I'm here to help you with your questions.
+            </p>
+            <div style={styles.suggestions}>
+              <div style={styles.suggestionChip}>💼 Services</div>
+              <div style={styles.suggestionChip}>💰 Pricing</div>
+              <div style={styles.suggestionChip}>📞 Contact</div>
+            </div>
           </div>
         ) : (
           messages.map((msg) => (
             <div 
               key={msg.id} 
               style={{
-                ...styles.messageBubble,
-                ...(msg.sender === 'user' ? styles.userBubble : styles.botBubble)
+                ...styles.messageRow,
+                justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start'
               }}
             >
-              <div style={styles.messageHeader}>
-                <div style={styles.senderInfo}>
-                  <span style={styles.senderIcon}>
-                    {msg.sender === 'user' ? '👤' : '🤖'}
-                  </span>
-                  <strong style={styles.senderName}>
-                    {msg.sender === 'user' ? 'You' : 'Assistant'}
-                  </strong>
+              {msg.sender === 'bot' && (
+                <div style={styles.avatarBot}>
+                  <svg style={styles.avatarIcon} viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/>
+                  </svg>
                 </div>
-                <span style={styles.timestamp}>{msg.timestamp}</span>
-              </div>
-              <div style={styles.messageContent}>{msg.text}</div>
-              {msg.intent && (
-                <div style={styles.metadata}>
-                  <span style={styles.intentText}>{msg.intent}</span>
-                  {msg.confidence && (
-                    <span style={styles.confidenceText}>
-                      ({Math.round(msg.confidence * 100)}%)
+              )}
+              <div 
+                style={{
+                  ...styles.messageBubble,
+                  ...(msg.sender === 'user' ? styles.userBubble : styles.botBubble)
+                }}
+              >
+                <div style={styles.messageContent}>{msg.text}</div>
+                <div style={styles.messageFooter}>
+                  <span style={styles.timestamp}>{msg.timestamp}</span>
+                  {msg.intent && (
+                    <span style={styles.intentBadge}>
+                      {msg.intent}
+                      {msg.confidence && ` • ${Math.round(msg.confidence * 100)}%`}
                     </span>
                   )}
+                </div>
+              </div>
+              {msg.sender === 'user' && (
+                <div style={styles.avatarUser}>
+                  <svg style={styles.avatarIcon} viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
                 </div>
               )}
             </div>
@@ -239,29 +269,41 @@ function ChatInterface({ isDrawerOpen = true }) {
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} style={styles.inputForm}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message..."
-          style={styles.inputField}
-          disabled={loading}
-          onKeyPress={(e) => e.key === 'Enter' && handleSubmit(e)}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          style={{
-            ...styles.sendButton,
-            backgroundColor: (input.trim() && !loading) ? '#007bff' : '#ccc',
-            cursor: (input.trim() && !loading) ? 'pointer' : 'not-allowed'
-          }}
-        >
-          {loading ? 'Sending...' : 'Send'}
-        </button>
-      </form>
+      <div style={styles.inputContainer}>
+        <form onSubmit={handleSubmit} style={styles.inputForm}>
+          <div style={styles.inputWrapper}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message..."
+              style={styles.inputField}
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              style={{
+                ...styles.sendButton,
+                opacity: (input.trim() && !loading) ? 1 : 0.4,
+              }}
+            >
+              {loading ? (
+                <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="15">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
+                  </circle>
+                </svg>
+              ) : (
+                <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                </svg>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -271,192 +313,246 @@ const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100%',
+    height: '100vh',
     width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    backgroundColor: '#ffffff',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
   header: {
+    backgroundColor: '#ffffff',
+    borderBottom: '1px solid #e5e7eb',
+    padding: '16px 24px',
+  },
+  headerContent: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '18px 24px',
-    backgroundColor: '#007bff',
-    background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
-    color: 'white',
+    maxWidth: '1200px',
+    margin: '0 auto',
   },
   headerLeft: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  iconWrapper: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '10px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    width: '22px',
+    height: '22px',
+    color: '#ffffff',
   },
   title: {
     margin: 0,
-    fontSize: '20px',
-    fontWeight: '700',
-    letterSpacing: '-0.3px',
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#111827',
+    letterSpacing: '-0.02em',
   },
   messageCount: {
-    fontSize: '12px',
-    opacity: 0.9,
-    fontWeight: '500',
-  },
-  headerRight: {
-    display: 'flex',
-    gap: '10px',
+    fontSize: '13px',
+    color: '#6b7280',
+    fontWeight: '400',
   },
   clearButton: {
-    padding: '8px 16px',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    color: 'white',
-    border: '1px solid rgba(255,255,255,0.3)',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: '600',
-    transition: 'all 0.2s',
-  },
-  messagesArea: {
-    flex: 1,
-    padding: '24px',
-    overflowY: 'auto',
-    backgroundColor: '#f8f9fa',
-    minHeight: '400px',
-  },
-  emptyState: {
-    textAlign: 'center',
-    padding: '60px 20px',
-    color: '#6c757d',
-  },
-  welcomeIcon: {
-    fontSize: '48px',
-    marginBottom: '16px',
-    opacity: 0.5,
-  },
-  welcomeText: {
-    fontSize: '20px',
-    fontWeight: '600',
-    marginBottom: '8px',
-    color: '#343a40',
-  },
-  instructionText: {
-    fontSize: '14px',
-    marginBottom: '8px',
-    color: '#6c757d',
-  },
-  exampleText: {
-    fontSize: '13px',
-    color: '#adb5bd',
-    fontStyle: 'italic',
-    marginBottom: '24px',
-  },
-  messageBubble: {
-    marginBottom: '16px',
-    padding: '16px 20px',
-    borderRadius: '18px',
-    maxWidth: '85%',
-    wordWrap: 'break-word',
-    boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
-    animation: 'fadeIn 0.3s ease-out',
-  },
-  userBubble: {
-    backgroundColor: '#007bff',
-    color: 'white',
-    marginLeft: 'auto',
-    borderBottomRightRadius: '5px',
-  },
-  botBubble: {
-    backgroundColor: 'white',
-    color: '#343a40',
-    marginRight: 'auto',
-    borderBottomLeftRadius: '5px',
-    border: '1px solid #e9ecef',
-  },
-  messageHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px',
-    fontSize: '12px',
-    opacity: 0.9,
-  },
-  senderInfo: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-  },
-  senderIcon: {
+    padding: '8px 16px',
+    backgroundColor: '#f3f4f6',
+    color: '#374151',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
     fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.2s',
   },
-  senderName: {
-    textTransform: 'capitalize',
-    fontSize: '13px',
+  buttonIcon: {
+    width: '16px',
+    height: '16px',
+  },
+  messagesArea: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '24px',
+    backgroundColor: '#f9fafb',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    padding: '40px 20px',
+    textAlign: 'center',
+  },
+  emptyIconWrapper: {
+    width: '80px',
+    height: '80px',
+    borderRadius: '20px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '24px',
+    boxShadow: '0 10px 40px rgba(102, 126, 234, 0.3)',
+  },
+  emptyIcon: {
+    width: '40px',
+    height: '40px',
+    color: '#ffffff',
+  },
+  emptyTitle: {
+    fontSize: '24px',
+    fontWeight: '600',
+    color: '#111827',
+    margin: '0 0 12px 0',
+  },
+  emptyDescription: {
+    fontSize: '15px',
+    color: '#6b7280',
+    margin: '0 0 32px 0',
+    maxWidth: '400px',
+    lineHeight: '1.6',
+  },
+  suggestions: {
+    display: 'flex',
+    gap: '12px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  suggestionChip: {
+    padding: '10px 20px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '20px',
+    fontSize: '14px',
+    color: '#374151',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+  },
+  messageRow: {
+    display: 'flex',
+    marginBottom: '16px',
+    gap: '12px',
+    maxWidth: '800px',
+    margin: '0 auto 16px auto',
+  },
+  avatarBot: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarUser: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarIcon: {
+    width: '20px',
+    height: '20px',
+    color: '#ffffff',
+  },
+  messageBubble: {
+    padding: '12px 16px',
+    borderRadius: '16px',
+    maxWidth: '70%',
+    wordWrap: 'break-word',
+    animation: 'slideIn 0.3s ease-out',
+  },
+  userBubble: {
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: '#ffffff',
+    borderBottomRightRadius: '4px',
+  },
+  botBubble: {
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    borderBottomLeftRadius: '4px',
+    border: '1px solid #e5e7eb',
+  },
+  messageContent: {
+    fontSize: '15px',
+    lineHeight: '1.5',
+    marginBottom: '6px',
+  },
+  messageFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    marginTop: '4px',
   },
   timestamp: {
     fontSize: '11px',
     opacity: 0.7,
   },
-  messageContent: {
-    fontSize: '15px',
-    lineHeight: '1.5',
-    marginBottom: '8px',
-  },
-  metadata: {
-    marginTop: '10px',
-    paddingTop: '10px',
-    borderTop: '1px dashed rgba(0,0,0,0.1)',
-    fontSize: '12px',
-    color: '#6c757d',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '5px',
-  },
-  intentText: {
-    color: '#28a745',
-    fontWeight: '600',
-  },
-  confidenceText: {
-    color: '#6c757d',
+  intentBadge: {
     fontSize: '11px',
+    padding: '2px 8px',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    color: '#059669',
+    borderRadius: '4px',
+    fontWeight: '500',
+  },
+  inputContainer: {
+    borderTop: '1px solid #e5e7eb',
+    backgroundColor: '#ffffff',
+    padding: '16px 24px',
   },
   inputForm: {
+    maxWidth: '800px',
+    margin: '0 auto',
+  },
+  inputWrapper: {
     display: 'flex',
-    padding: '20px',
-    borderTop: '1px solid #e9ecef',
-    backgroundColor: 'white',
+    gap: '12px',
+    alignItems: 'center',
   },
   inputField: {
     flex: 1,
-    padding: '14px 18px',
-    border: '2px solid #e0e0e0',
-    borderRadius: '25px',
+    padding: '14px 20px',
+    border: '2px solid #e5e7eb',
+    borderRadius: '12px',
     fontSize: '15px',
     outline: 'none',
     transition: 'all 0.2s',
-  },
-  inputFieldFocus: {
-    borderColor: '#007bff',
-    boxShadow: '0 0 0 3px rgba(0,123,255,0.1)',
+    backgroundColor: '#f9fafb',
   },
   sendButton: {
-    marginLeft: '12px',
-    padding: '14px 28px',
-    color: 'white',
+    width: '48px',
+    height: '48px',
+    padding: '0',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: '#ffffff',
     border: 'none',
-    borderRadius: '25px',
-    fontSize: '15px',
-    fontWeight: '600',
-    minWidth: '90px',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     transition: 'all 0.2s',
-  },
-  '@global': {
-    '@keyframes fadeIn': {
-      from: { opacity: 0, transform: 'translateY(10px)' },
-      to: { opacity: 1, transform: 'translateY(0)' },
-    },
+    flexShrink: 0,
   },
 };
 
