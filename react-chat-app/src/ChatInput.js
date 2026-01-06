@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// Complete chat interface component
+// Complete modern chat interface component
 function ChatInterface({ isDrawerOpen = true }) {
   // State - load from localStorage if available
   const [messages, setMessages] = useState(() => {
@@ -10,6 +10,7 @@ function ChatInterface({ isDrawerOpen = true }) {
   
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [conversationId] = useState(() => {
     const saved = localStorage.getItem('n8n_chat_conversation_id');
     return saved || `conv_${Date.now()}`;
@@ -32,14 +33,21 @@ function ChatInterface({ isDrawerOpen = true }) {
   // Focus input when drawer opens
   useEffect(() => {
     if (isDrawerOpen && inputRef.current) {
-      inputRef.current.focus();
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
     }
   }, [isDrawerOpen]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }, 100);
+  }, [messages, isTyping]);
 
   // Add a message to chat
   const addMessage = (text, sender, metadata = {}) => {
@@ -56,7 +64,7 @@ function ChatInterface({ isDrawerOpen = true }) {
 
   // Extract message from n8n response
   const extractMessage = (data) => {
-    if (!data) return 'No response received from n8n';
+    if (!data) return 'No response received';
     
     // Try different response formats in order
     if (data.message && typeof data.message === 'string') {
@@ -72,7 +80,7 @@ function ChatInterface({ isDrawerOpen = true }) {
         return data.json.response_message;
       }
       if (data.json.message && typeof data.json.message === 'string') {
-        return data.json.message;
+        return data.message;
       }
     }
     
@@ -102,7 +110,7 @@ function ChatInterface({ isDrawerOpen = true }) {
       return `Response: ${responseStr}`;
     }
     
-    return 'Received response but could not extract message.';
+    return 'I received your message.';
   };
 
   // Handle sending message
@@ -118,12 +126,16 @@ function ChatInterface({ isDrawerOpen = true }) {
     // Clear input and show loading
     setInput('');
     setLoading(true);
+    setIsTyping(true);
 
     try {
       const requestBody = { 
         text: userMessage, 
         conversationId: conversationId
       };
+
+      // Simulate typing delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const response = await fetch(CHAT_API_URL, {
         method: 'POST',
@@ -141,34 +153,42 @@ function ChatInterface({ isDrawerOpen = true }) {
 
       const data = await response.json();
       
+      // Simulate thinking time
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Extract bot message
       const botMessage = extractMessage(data);
       
       // Add bot message to chat
-      addMessage(botMessage, 'bot', {
+      addMessage(botMessage, 'assistant', {
         intent: data.intent || data.json?.intent,
         confidence: data.confidence || data.json?.confidence
       });
 
     } catch (error) {
       console.error('Error:', error);
-      addMessage(`Sorry, there was an error processing your message.`, 'bot', { type: 'error' });
+      addMessage(`Sorry, I encountered an issue. Please try again.`, 'assistant', { type: 'error' });
     } finally {
       setLoading(false);
+      setIsTyping(false);
     }
   };
 
   // Clear chat (with confirmation)
   const clearChat = () => {
     if (messages.length > 0) {
-      if (window.confirm('Are you sure you want to clear the chat history?')) {
+      if (window.confirm('Clear all chat messages?')) {
         setMessages([]);
         // Generate new conversation ID
         const newId = `conv_${Date.now()}`;
         localStorage.setItem('n8n_chat_conversation_id', newId);
-        window.location.reload(); // Refresh to use new ID
       }
     }
+  };
+
+  // Format time
+  const formatTime = (timestamp) => {
+    return timestamp;
   };
 
   return (
@@ -176,100 +196,143 @@ function ChatInterface({ isDrawerOpen = true }) {
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerContent}>
-          <div style={styles.headerLeft}>
-            <div style={styles.iconWrapper}>
-              <svg style={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-            </div>
-            <div>
-              <h3 style={styles.title}>AI Assistant</h3>
-              {messages.length > 0 && (
-                <small style={styles.messageCount}>
-                  {messages.length} message{messages.length !== 1 ? 's' : ''}
-                </small>
-              )}
-            </div>
+          <div style={styles.avatar}>
+            <span style={styles.avatarText}>AI</span>
           </div>
-          {messages.length > 0 && (
-            <button onClick={clearChat} style={styles.clearButton}>
-              <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-              Clear
-            </button>
-          )}
+          <div style={styles.headerInfo}>
+            <h3 style={styles.title}>Assistant</h3>
+            {isTyping ? (
+              <div style={styles.typingStatus}>
+                <div style={styles.typingDots}>
+                  <div style={styles.dot}></div>
+                  <div style={styles.dot}></div>
+                  <div style={styles.dot}></div>
+                </div>
+                <span style={styles.typingText}>typing...</span>
+              </div>
+            ) : (
+              <p style={styles.subtitle}>Ask me anything</p>
+            )}
+          </div>
         </div>
+        {messages.length > 0 && (
+          <button onClick={clearChat} style={styles.clearButton}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Messages Area */}
       <div style={styles.messagesArea}>
         {messages.length === 0 ? (
           <div style={styles.emptyState}>
-            <div style={styles.emptyIconWrapper}>
-              <svg style={styles.emptyIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                <path d="M8 10h.01M12 10h.01M16 10h.01"/>
-              </svg>
+            <div style={styles.welcomeIllustration}>
+              <div style={styles.welcomeIcon}>💬</div>
             </div>
-            <h4 style={styles.emptyTitle}>Start a conversation</h4>
-            <p style={styles.emptyDescription}>
-              Ask me anything! I'm here to help you with your questions.
-            </p>
+            <h3 style={styles.welcomeTitle}>Start a conversation</h3>
+            <p style={styles.welcomeText}>I'm here to help with your questions about services, pricing, and more.</p>
             <div style={styles.suggestions}>
-              <div style={styles.suggestionChip}>💼 Services</div>
-              <div style={styles.suggestionChip}>💰 Pricing</div>
-              <div style={styles.suggestionChip}>📞 Contact</div>
+              <button 
+                onClick={() => setInput("What services do you offer?")}
+                style={styles.suggestionButton}
+              >
+                What services do you offer?
+              </button>
+              <button 
+                onClick={() => setInput("Tell me about pricing")}
+                style={styles.suggestionButton}
+              >
+                Tell me about pricing
+              </button>
+              <button 
+                onClick={() => setInput("How can I contact support?")}
+                style={styles.suggestionButton}
+              >
+                How can I contact support?
+              </button>
             </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              style={{
-                ...styles.messageRow,
-                justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start'
-              }}
-            >
-              {msg.sender === 'bot' && (
-                <div style={styles.avatarBot}>
-                  <svg style={styles.avatarIcon} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"/>
-                  </svg>
-                </div>
-              )}
-              <div 
-                style={{
-                  ...styles.messageBubble,
-                  ...(msg.sender === 'user' ? styles.userBubble : styles.botBubble)
-                }}
-              >
-                <div style={styles.messageContent}>{msg.text}</div>
-                <div style={styles.messageFooter}>
-                  <span style={styles.timestamp}>{msg.timestamp}</span>
-                  {msg.intent && (
-                    <span style={styles.intentBadge}>
-                      {msg.intent}
-                      {msg.confidence && ` • ${Math.round(msg.confidence * 100)}%`}
-                    </span>
+          <>
+            {messages.map((msg, index) => (
+              <div key={msg.id}>
+                {/* Show date separator for new days */}
+                {index > 0 && new Date(msg.id).toDateString() !== new Date(messages[index - 1].id).toDateString() && (
+                  <div style={styles.dateSeparator}>
+                    <span>{new Date(msg.id).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+                
+                {/* Message bubble */}
+                <div 
+                  style={{
+                    ...styles.messageContainer,
+                    justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                  }}
+                >
+                  {msg.sender === 'assistant' && (
+                    <div style={styles.assistantAvatar}>
+                      <span style={styles.assistantAvatarText}>AI</span>
+                    </div>
+                  )}
+                  
+                  <div 
+                    style={{
+                      ...styles.messageBubble,
+                      ...(msg.sender === 'user' ? styles.userBubble : styles.assistantBubble),
+                      marginLeft: msg.sender === 'assistant' ? '8px' : '0',
+                      marginRight: msg.sender === 'user' ? '0' : '8px',
+                    }}
+                  >
+                    <div style={styles.messageContent}>{msg.text}</div>
+                    <div style={styles.messageFooter}>
+                      <span style={styles.timestamp}>{formatTime(msg.timestamp)}</span>
+                      {msg.intent && (
+                        <span style={styles.intentBadge}>
+                          {msg.intent}
+                          {msg.confidence && (
+                            <span style={styles.confidenceBadge}>
+                              {Math.round(msg.confidence * 100)}%
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {msg.sender === 'user' && (
+                    <div style={styles.userAvatar}>
+                      <span style={styles.userAvatarText}>You</span>
+                    </div>
                   )}
                 </div>
               </div>
-              {msg.sender === 'user' && (
-                <div style={styles.avatarUser}>
-                  <svg style={styles.avatarIcon} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                  </svg>
+            ))}
+            
+            {/* Typing indicator */}
+            {isTyping && (
+              <div style={styles.messageContainer}>
+                <div style={styles.assistantAvatar}>
+                  <span style={styles.assistantAvatarText}>AI</span>
                 </div>
-              )}
-            </div>
-          ))
+                <div style={styles.typingBubble}>
+                  <div style={styles.typingIndicator}>
+                    <div style={styles.typingDot}></div>
+                    <div style={styles.typingDot}></div>
+                    <div style={styles.typingDot}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} style={styles.scrollAnchor} />
       </div>
 
-      {/* Input Form */}
-      <div style={styles.inputContainer}>
+      {/* Input Area */}
+      <div style={styles.inputArea}>
         <form onSubmit={handleSubmit} style={styles.inputForm}>
           <div style={styles.inputWrapper}>
             <input
@@ -280,27 +343,27 @@ function ChatInterface({ isDrawerOpen = true }) {
               placeholder="Type your message..."
               style={styles.inputField}
               disabled={loading}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit(e)}
             />
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              style={{
-                ...styles.sendButton,
-                opacity: (input.trim() && !loading) ? 1 : 0.4,
-              }}
+              style={styles.sendButton}
             >
               {loading ? (
-                <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="15">
-                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite"/>
-                  </circle>
-                </svg>
+                <div style={styles.sendButtonLoading}>
+                  <div style={styles.spinner}></div>
+                </div>
               ) : (
-                <svg style={styles.buttonIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
               )}
             </button>
+          </div>
+          <div style={styles.inputHint}>
+            Press Enter to send • Shift + Enter for new line
           </div>
         </form>
       </div>
@@ -308,82 +371,109 @@ function ChatInterface({ isDrawerOpen = true }) {
   );
 }
 
-// Styles
+// Modern Styles
 const styles = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     width: '100%',
     backgroundColor: '#ffffff',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    borderRadius: '16px',
+    overflow: 'hidden',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   header: {
+    padding: '20px 24px',
     backgroundColor: '#ffffff',
-    borderBottom: '1px solid #e5e7eb',
-    padding: '16px 24px',
+    borderBottom: '1px solid #f0f0f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
   },
   headerContent: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    maxWidth: '1200px',
-    margin: '0 auto',
-  },
-  headerLeft: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
   },
-  iconWrapper: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  avatar: {
+    width: '44px',
+    height: '44px',
+    borderRadius: '12px',
+    backgroundColor: '#6366f1',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)',
   },
-  icon: {
-    width: '22px',
-    height: '22px',
+  avatarText: {
     color: '#ffffff',
+    fontWeight: '700',
+    fontSize: '16px',
+  },
+  headerInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
   },
   title: {
     margin: 0,
     fontSize: '18px',
-    fontWeight: '600',
-    color: '#111827',
-    letterSpacing: '-0.02em',
+    fontWeight: '700',
+    color: '#1f2937',
   },
-  messageCount: {
-    fontSize: '13px',
+  subtitle: {
+    margin: 0,
+    fontSize: '14px',
     color: '#6b7280',
     fontWeight: '400',
   },
-  clearButton: {
+  typingStatus: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '8px 16px',
-    backgroundColor: '#f3f4f6',
-    color: '#374151',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    transition: 'all 0.2s',
+    gap: '8px',
   },
-  buttonIcon: {
-    width: '16px',
-    height: '16px',
+  typingDots: {
+    display: 'flex',
+    gap: '4px',
+  },
+  dot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#10b981',
+    animation: 'pulse 1.4s infinite ease-in-out',
+  },
+  typingText: {
+    fontSize: '14px',
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  clearButton: {
+    padding: '8px',
+    backgroundColor: 'transparent',
+    color: '#9ca3af',
+    border: '1px solid #e5e7eb',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s ease',
+  },
+  clearButtonHover: {
+    backgroundColor: '#f3f4f6',
+    color: '#ef4444',
+    borderColor: '#fca5a5',
   },
   messagesArea: {
     flex: 1,
-    overflowY: 'auto',
     padding: '24px',
-    backgroundColor: '#f9fafb',
+    overflowY: 'auto',
+    backgroundColor: '#fafafa',
+    scrollBehavior: 'smooth',
   },
   emptyState: {
     display: 'flex',
@@ -394,135 +484,191 @@ const styles = {
     padding: '40px 20px',
     textAlign: 'center',
   },
-  emptyIconWrapper: {
+  welcomeIllustration: {
     width: '80px',
     height: '80px',
     borderRadius: '20px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: '24px',
-    boxShadow: '0 10px 40px rgba(102, 126, 234, 0.3)',
   },
-  emptyIcon: {
-    width: '40px',
-    height: '40px',
-    color: '#ffffff',
+  welcomeIcon: {
+    fontSize: '36px',
+    color: '#6366f1',
   },
-  emptyTitle: {
+  welcomeTitle: {
     fontSize: '24px',
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#1f2937',
     margin: '0 0 12px 0',
   },
-  emptyDescription: {
+  welcomeText: {
     fontSize: '15px',
     color: '#6b7280',
-    margin: '0 0 32px 0',
+    lineHeight: '1.5',
     maxWidth: '400px',
-    lineHeight: '1.6',
+    margin: '0 0 32px 0',
   },
   suggestions: {
     display: 'flex',
+    flexDirection: 'column',
     gap: '12px',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    width: '100%',
+    maxWidth: '400px',
   },
-  suggestionChip: {
-    padding: '10px 20px',
+  suggestionButton: {
+    padding: '14px 20px',
     backgroundColor: '#ffffff',
+    color: '#4b5563',
     border: '1px solid #e5e7eb',
-    borderRadius: '20px',
-    fontSize: '14px',
-    color: '#374151',
-    fontWeight: '500',
+    borderRadius: '12px',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+    fontSize: '14px',
+    fontWeight: '500',
+    textAlign: 'left',
+    transition: 'all 0.2s ease',
   },
-  messageRow: {
+  suggestionButtonHover: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#d1d5db',
+    transform: 'translateY(-1px)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+  },
+  messageContainer: {
     display: 'flex',
-    marginBottom: '16px',
-    gap: '12px',
-    maxWidth: '800px',
-    margin: '0 auto 16px auto',
+    alignItems: 'flex-end',
+    marginBottom: '20px',
+    animation: 'fadeInUp 0.3s ease-out',
   },
-  avatarBot: {
+  dateSeparator: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '24px 0',
+    position: 'relative',
+  },
+  dateSeparatorText: {
+    backgroundColor: '#f3f4f6',
+    padding: '6px 16px',
+    borderRadius: '20px',
+    fontSize: '12px',
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  assistantAvatar: {
     width: '36px',
     height: '36px',
     borderRadius: '10px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: '#6366f1',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  avatarUser: {
-    width: '36px',
-    height: '36px',
-    borderRadius: '10px',
-    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  avatarIcon: {
-    width: '20px',
-    height: '20px',
+  assistantAvatarText: {
     color: '#ffffff',
+    fontSize: '12px',
+    fontWeight: '700',
+  },
+  userAvatar: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    backgroundColor: '#10b981',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  userAvatarText: {
+    color: '#ffffff',
+    fontSize: '12px',
+    fontWeight: '700',
   },
   messageBubble: {
-    padding: '12px 16px',
-    borderRadius: '16px',
-    maxWidth: '70%',
-    wordWrap: 'break-word',
-    animation: 'slideIn 0.3s ease-out',
+    maxWidth: 'calc(100% - 100px)',
+    padding: '16px 20px',
+    borderRadius: '20px',
+    position: 'relative',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+  },
+  assistantBubble: {
+    backgroundColor: '#ffffff',
+    border: '1px solid #f0f0f0',
+    borderBottomLeftRadius: '8px',
   },
   userBubble: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    backgroundColor: '#6366f1',
     color: '#ffffff',
-    borderBottomRightRadius: '4px',
-  },
-  botBubble: {
-    backgroundColor: '#ffffff',
-    color: '#111827',
-    borderBottomLeftRadius: '4px',
-    border: '1px solid #e5e7eb',
+    borderBottomRightRadius: '8px',
   },
   messageContent: {
     fontSize: '15px',
     lineHeight: '1.5',
-    marginBottom: '6px',
+    marginBottom: '8px',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
   },
   messageFooter: {
     display: 'flex',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: '8px',
-    marginTop: '4px',
+    alignItems: 'center',
+    fontSize: '12px',
+    opacity: 0.8,
+    gap: '12px',
   },
   timestamp: {
     fontSize: '11px',
-    opacity: 0.7,
   },
   intentBadge: {
-    fontSize: '11px',
-    padding: '2px 8px',
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    color: '#059669',
-    borderRadius: '4px',
-    fontWeight: '500',
+    color: '#10b981',
+    padding: '4px 10px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: '600',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
   },
-  inputContainer: {
-    borderTop: '1px solid #e5e7eb',
+  confidenceBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    padding: '2px 6px',
+    borderRadius: '8px',
+    fontSize: '10px',
+  },
+  typingBubble: {
     backgroundColor: '#ffffff',
+    border: '1px solid #f0f0f0',
     padding: '16px 24px',
+    borderRadius: '20px',
+    borderBottomLeftRadius: '8px',
+    marginLeft: '8px',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+  },
+  typingIndicator: {
+    display: 'flex',
+    gap: '6px',
+  },
+  typingDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: '#9ca3af',
+    animation: 'typing 1.4s infinite ease-in-out',
+  },
+  scrollAnchor: {
+    height: '1px',
+  },
+  inputArea: {
+    padding: '20px 24px',
+    backgroundColor: '#ffffff',
+    borderTop: '1px solid #f0f0f0',
   },
   inputForm: {
-    maxWidth: '800px',
-    margin: '0 auto',
+    width: '100%',
   },
   inputWrapper: {
     display: 'flex',
@@ -531,29 +677,117 @@ const styles = {
   },
   inputField: {
     flex: 1,
-    padding: '14px 20px',
-    border: '2px solid #e5e7eb',
-    borderRadius: '12px',
+    padding: '16px 20px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '14px',
     fontSize: '15px',
     outline: 'none',
-    transition: 'all 0.2s',
     backgroundColor: '#f9fafb',
+    transition: 'all 0.2s ease',
+  },
+  inputFieldFocus: {
+    borderColor: '#6366f1',
+    backgroundColor: '#ffffff',
+    boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)',
   },
   sendButton: {
-    width: '48px',
-    height: '48px',
-    padding: '0',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    width: '52px',
+    height: '52px',
+    backgroundColor: '#6366f1',
     color: '#ffffff',
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: '14px',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'all 0.2s',
+    transition: 'all 0.2s ease',
     flexShrink: 0,
   },
+  sendButtonDisabled: {
+    backgroundColor: '#e5e7eb',
+    cursor: 'not-allowed',
+  },
+  sendButtonLoading: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    width: '20px',
+    height: '20px',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    borderTopColor: '#ffffff',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  inputHint: {
+    fontSize: '12px',
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: '12px',
+  },
+  '@global': {
+    '@keyframes fadeInUp': {
+      from: { 
+        opacity: 0, 
+        transform: 'translateY(10px)',
+      },
+      to: { 
+        opacity: 1, 
+        transform: 'translateY(0)',
+      },
+    },
+    '@keyframes pulse': {
+      '0%, 100%': { 
+        opacity: 0.4,
+        transform: 'scale(0.8)',
+      },
+      '50%': { 
+        opacity: 1,
+        transform: 'scale(1)',
+      },
+    },
+    '@keyframes typing': {
+      '0%, 60%, 100%': { 
+        transform: 'translateY(0)',
+      },
+      '30%': { 
+        transform: 'translateY(-6px)',
+      },
+    },
+    '@keyframes spin': {
+      from: { transform: 'rotate(0deg)' },
+      to: { transform: 'rotate(360deg)' },
+    },
+  },
 };
+
+// Add global styles
+const globalStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  
+  button {
+    font-family: inherit;
+  }
+  
+  input {
+    font-family: inherit;
+  }
+`;
+
+// Inject global styles
+const styleSheet = document.createElement('style');
+styleSheet.textContent = globalStyles;
+document.head.appendChild(styleSheet);
 
 export default ChatInterface;
