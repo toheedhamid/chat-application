@@ -1,9 +1,7 @@
 {
-  "version": 2,
   "buildCommand": "cd react-chat-app && npm install && npm run build",
   "outputDirectory": "react-chat-app/build",
   "installCommand": "npm install --prefix react-chat-app && npm install --prefix api",
-  "framework": null,
   "rewrites": [
     {
       "source": "/api/:path*",
