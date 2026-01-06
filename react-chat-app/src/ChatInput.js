@@ -39,6 +39,10 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
     if (!input.trim()) return;
 
     const userMessage = input;
+    console.log('=== Starting handleSubmit ===');
+    console.log('User message:', userMessage);
+    console.log('onSendMessage function:', typeof onSendMessage);
+    
     onSendMessage(userMessage, 'user');
     setInput('');
     setLoading(true);
@@ -135,14 +139,20 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
 
       console.log('Final extracted bot message:', botMessage);
       
+      // TEMPORARY DEBUG: Always show a test message to verify onSendMessage works
+      const testMessage = `Debug: Bot message extracted - "${botMessage}" - Length: ${botMessage.length}`;
+      console.log('About to call onSendMessage with:', testMessage);
+      
       const historyCount = data.historyCount || 0;
       
-      onSendMessage(botMessage, 'bot', {
+      onSendMessage(testMessage, 'bot', {
         type: 'chat',
         historyCount: historyCount,
         intent: data.intent || data.json?.intent,
         confidence: data.confidence || data.json?.confidence
       });
+      
+      console.log('onSendMessage called successfully');
     } catch (error) {
       console.error('Error:', error);
       onSendMessage('Sorry, I encountered an error. Please try again.', 'bot', {
