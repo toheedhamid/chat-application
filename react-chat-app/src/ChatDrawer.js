@@ -4,7 +4,10 @@ import ChatInput from './ChatInput';
 
 function ChatDrawer({ isOpen, onClose, messages, onSendMessage, onFeedback, onClearChat, isLoading, setLoading, conversationId }) {
   
-  // Local n8n backend URL for development
+  // Production Railway n8n backend URL
+  const PRODUCTION_N8N_URL = 'https://n8n-main-instance-production-0ed4.up.railway.app';
+  
+  // Local n8n backend URL for development (fallback)
   const LOCAL_N8N_URL = 'http://localhost:5678';
   
   // Railway n8n backend URL (set in Vercel environment variables)
@@ -17,10 +20,11 @@ function ChatDrawer({ isOpen, onClose, messages, onSendMessage, onFeedback, onCl
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
   const CALENDLY_LINK = 'https://calendly.com/your-link'; // Your actual Calendly link
   
-  // API endpoints - Priority: 1. Local n8n, 2. Railway n8n, 3. Vercel API
+  // API endpoints - Priority: 1. Production Railway, 2. Environment variables, 3. Local n8n, 4. Vercel API
   const API_ENDPOINTS = {
-    chat: `${LOCAL_N8N_URL}/webhook-test/answer` ||
+    chat: `${PRODUCTION_N8N_URL}/webhook-test/answer` ||
       (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost') ? `${N8N_BASE_URL}/webhook/answer` : null) ||
+      `${LOCAL_N8N_URL}/webhook-test/answer` ||
       `${API_BASE_URL}/chat-memory`,
     status: `${API_BASE_URL}/status` // Status endpoint stays on Vercel
   };

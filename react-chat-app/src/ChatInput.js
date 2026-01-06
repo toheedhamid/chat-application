@@ -4,7 +4,10 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
 
-  // Local n8n backend URL for development
+  // Production Railway n8n backend URL
+  const PRODUCTION_N8N_URL = 'https://n8n-main-instance-production-0ed4.up.railway.app';
+  
+  // Local n8n backend URL for development (fallback)
   const LOCAL_N8N_URL = 'http://localhost:5678';
   
   // Railway n8n backend URL (set in Vercel environment variables)
@@ -14,10 +17,11 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
                        process.env.REACT_APP_N8N_WEBHOOK_URL?.replace('/webhook/answer', '').replace('/webhook/chat-memory', '') ||
                        process.env.REACT_APP_API_BASE_URL?.replace('/api', '');
   
-  // Priority: 1. Local n8n (if running), 2. Railway n8n, 3. Vercel API
+  // Priority: 1. Production Railway, 2. Environment variables, 3. Local n8n, 4. Vercel API
   const CHAT_API_URL = WEBHOOK_URL || 
-    `${LOCAL_N8N_URL}/webhook-test/answer` ||
+    `${PRODUCTION_N8N_URL}/webhook-test/answer` ||
     (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost') ? `${N8N_BASE_URL}/webhook/answer` : null) ||
+    `${LOCAL_N8N_URL}/webhook-test/answer` ||
     (process.env.REACT_APP_API_BASE_URL && !process.env.REACT_APP_API_BASE_URL.includes('localhost') 
       ? `${process.env.REACT_APP_API_BASE_URL}/chat-memory` 
       : '/api/chat-memory');
