@@ -20,12 +20,13 @@ function ChatDrawer({ isOpen, onClose, messages, onSendMessage, onFeedback, onCl
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
   const CALENDLY_LINK = 'https://calendly.com/your-link'; // Your actual Calendly link
   
+  // API endpoints - Priority: 1. Local n8n, 2. Environment variables, 3. Production Railway, 4. Vercel API
   let chatEndpoint;
   
   if (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost')) {
     chatEndpoint = `${N8N_BASE_URL}/webhook/answer`;
   } else {
-    chatEndpoint = `${PRODUCTION_N8N_URL}/webhook-test/answer`;
+    chatEndpoint = `${LOCAL_N8N_URL}/webhook-test/answer`;
   }
   
   const API_ENDPOINTS = {

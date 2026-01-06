@@ -17,7 +17,7 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
                        process.env.REACT_APP_N8N_WEBHOOK_URL?.replace('/webhook/answer', '').replace('/webhook/chat-memory', '') ||
                        process.env.REACT_APP_API_BASE_URL?.replace('/api', '');
   
-  // Priority: 1. Production Railway, 2. Environment variables, 3. Local n8n, 4. Vercel API
+  // Priority: 1. Local n8n, 2. Environment variables, 3. Production Railway, 4. Vercel API
   let CHAT_API_URL;
   
   if (WEBHOOK_URL) {
@@ -25,7 +25,7 @@ function ChatInput({ onSendMessage, setLoading, isDrawerOpen, conversationId, WE
   } else if (N8N_BASE_URL && !N8N_BASE_URL.includes('localhost')) {
     CHAT_API_URL = `${N8N_BASE_URL}/webhook/answer`;
   } else {
-    CHAT_API_URL = `${PRODUCTION_N8N_URL}/webhook-test/answer`;
+    CHAT_API_URL = `${LOCAL_N8N_URL}/webhook-test/answer`;
   }
 
   useEffect(() => {
